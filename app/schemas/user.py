@@ -1,0 +1,30 @@
+from datetime import datetime
+from pydantic import BaseModel, EmailStr
+
+
+class UserBase(BaseModel):
+    email: EmailStr | None = None
+    phone: str | None = None
+    name: str | None = None
+
+
+class UserCreate(UserBase):
+    password: str | None = None
+
+
+class UserUpdate(BaseModel):
+    email: EmailStr | None = None
+    phone: str | None = None
+    name: str | None = None
+    profile_image: str | None = None
+
+
+class UserResponse(UserBase):
+    id: int
+    profile_image: str | None = None
+    is_active: bool
+    is_verified: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
