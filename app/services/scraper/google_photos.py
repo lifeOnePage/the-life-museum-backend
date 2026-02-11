@@ -32,7 +32,10 @@ class GooglePhotosScraper(BaseScraper):
             html = resp.text
 
         raw_urls = _LH3_URL_RE.findall(html)
-        logger.info("Found %d raw lh3 URLs from %s", len(raw_urls), url)
+        logger.warning(
+            "GooglePhotosScraper: status=%d html_length=%d lh3_count=%d url=%s",
+            resp.status_code, len(html), len(raw_urls), url,
+        )
 
         media_items: list[MediaItem] = []
         seen_originals: set[str] = set()

@@ -82,10 +82,13 @@ class RecordService:
 
         for provider, url in source_urls:
             if not url:
+                logger.warning("Skipping provider=%s: url is empty/None", provider)
                 continue
             try:
+                logger.warning("Scraping provider=%s url=%s", provider, url)
                 scraper = scrapers[provider]()
                 media_items = await scraper.scrape(url)
+                logger.warning("Scraping result provider=%s: %d items", provider, len(media_items))
                 items.extend(media_items)
             except Exception as e:
                 logger.error("Scraping failed for provider=%s url=%s: %s", provider, url, e)
