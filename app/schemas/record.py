@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.schemas.scraper import MediaItem
+
 
 # --- QA ---
 class QaItem(BaseModel):
@@ -61,7 +63,7 @@ class RecordDetailResponse(BaseModel):
     googlePhotoUrl: str | None = None
     icloudUrl: str | None = None
     myboxUrl: str | None = None
-    mediaList: list[str] = []
+    mediaList: list[MediaItem] = []
     coverImage: CoverImageInfo | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None

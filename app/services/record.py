@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from sqlalchemy import select
@@ -8,7 +9,11 @@ from app.models.record import Record
 from app.models.lifestory import Lifestory, Qa
 from app.models.timeline import Timeline, Event
 from app.models.cover_image import CoverImage
+from app.schemas.scraper import MediaItem
 from app.services.scraper import GooglePhotosScraper, ICloudScraper, MyBoxScraper
+
+
+logger = logging.getLogger(__name__)
 
 
 class RecordService:
@@ -61,8 +66,8 @@ class RecordService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def scrape_media_list(self, record: Record) -> list[str]:
-        urls: list[str] = []
+    async def scrape_media_list(self, record: Record) -> list[MediaItem]:
+        items: list[MediaItem] = []
         source_urls = [
             ("google_photos", record.google_photo_url),
             ("icloud", record.icloud_url),
@@ -81,12 +86,12 @@ class RecordService:
             try:
                 scraper = scrapers[provider]()
                 media_items = await scraper.scrape(url)
-                for item in media_items:
-                    urls.append(item.original_url)
-            except Exception:
+                items.extend(media_items)
+            except Exception as e:
+                logger.error("Scraping failed for provider=%s url=%s: %s", provider, url, e)
                 continue
 
-        return urls
+        return items
 
     async def get_lifestory(self, record_id: uuid.UUID) -> Lifestory | None:
         stmt = (
