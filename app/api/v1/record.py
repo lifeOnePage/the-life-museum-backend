@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.common import ApiResponse, success_response
 from app.schemas.record import (
     RecordCreate,
+    RecordUpdate,
     RecordResponse,
     RecordDetailResponse,
     CoverImageInfo,
@@ -58,6 +59,47 @@ async def create_record(
         updatedAt=record.updated_at,
     )
     return success_response(data=data, code=201, message="Record created")
+
+
+@router.patch("/{record_id}", response_model=ApiResponse)
+async def update_record(
+    record_id: uuid.UUID,
+    body: RecordUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    # body에서 None이 아닌 필드만 추출하여 업데이트
+    field_mapping = {
+        "title": "title",
+        "subTitle": "subtitle",
+        "googlePhotoUrl": "google_photo_url",
+        "icloudUrl": "icloud_url",
+        "myboxUrl": "mybox_url",
+    }
+    update_data = {}
+    for schema_field, model_field in field_mapping.items():
+        value = getattr(body, schema_field, None)
+        if value is not None:
+            update_data[model_field] = value
+
+    record = await service.update_record(record, update_data)
+
+    data = RecordResponse(
+        id=record.id,
+        title=record.title,
+        subtitle=record.subtitle,
+        googlePhotoUrl=record.google_photo_url,
+        icloudUrl=record.icloud_url,
+        myboxUrl=record.mybox_url,
+        createdAt=record.created_at,
+        updatedAt=record.updated_at,
+    )
+    return success_response(data=data)
 
 
 @router.get("/{record_id}", response_model=ApiResponse)

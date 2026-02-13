@@ -43,6 +43,17 @@ class RecordService:
         await self.db.refresh(record)
         return record
 
+    async def update_record(
+        self,
+        record: Record,
+        update_data: dict,
+    ) -> Record:
+        for field, value in update_data.items():
+            setattr(record, field, value)
+        await self.db.commit()
+        await self.db.refresh(record)
+        return record
+
     async def get_records_by_user(self, user_id: uuid.UUID) -> list[Record]:
         stmt = (
             select(Record)

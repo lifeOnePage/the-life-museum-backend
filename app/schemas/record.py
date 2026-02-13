@@ -23,6 +23,14 @@ class RecordCreate(BaseModel):
     myboxUrl: str | None = None
 
 
+class RecordUpdate(BaseModel):
+    title: str | None = None
+    subTitle: str | None = None
+    googlePhotoUrl: str | None = None
+    icloudUrl: str | None = None
+    myboxUrl: str | None = None
+
+
 class RecordResponse(BaseModel):
     id: uuid.UUID
     title: str
