@@ -91,9 +91,7 @@ class Event(Base):
     )
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    timestamp: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
 
     # 관계: Event(N) - Timeline(1)

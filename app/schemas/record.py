@@ -56,7 +56,7 @@ class LifestorySummary(BaseModel):
 
 class EventItem(BaseModel):
     title: str
-    timestamp: datetime
+    timestamp: str
     description: str
 
 
