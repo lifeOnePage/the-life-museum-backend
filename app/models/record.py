@@ -59,6 +59,11 @@ class Record(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     subtitle: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
+    # 컬러 설정
+    color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    bg_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    key_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+
     # 외부 저장소 URL
     google_photo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     icloud_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

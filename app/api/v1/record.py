@@ -55,6 +55,9 @@ async def create_record(
         googlePhotoUrl=record.google_photo_url,
         icloudUrl=record.icloud_url,
         myboxUrl=record.mybox_url,
+        color=record.color,
+        bgColor=record.bg_color,
+        keyColor=record.key_color,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -80,6 +83,9 @@ async def update_record(
         "googlePhotoUrl": "google_photo_url",
         "icloudUrl": "icloud_url",
         "myboxUrl": "mybox_url",
+        "color": "color",
+        "bgColor": "bg_color",
+        "keyColor": "key_color",
     }
     update_data = {}
     for schema_field, model_field in field_mapping.items():
@@ -96,6 +102,9 @@ async def update_record(
         googlePhotoUrl=record.google_photo_url,
         icloudUrl=record.icloud_url,
         myboxUrl=record.mybox_url,
+        color=record.color,
+        bgColor=record.bg_color,
+        keyColor=record.key_color,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -146,6 +155,9 @@ async def get_record(
         googlePhotoUrl=record.google_photo_url,
         icloudUrl=record.icloud_url,
         myboxUrl=record.mybox_url,
+        color=record.color,
+        bgColor=record.bg_color,
+        keyColor=record.key_color,
         mediaList=media_list,
         coverImage=cover_image,
         lifestory=lifestory,

@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, AfterValidator
 
 from app.schemas.scraper import MediaItem
+
+
+def validate_hex_color(v: str | None) -> str | None:
+    if v is None:
+        return v
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", v):
+        raise ValueError("Invalid hex color. Must be # followed by 6 hex digits, e.g. #ff00aa")
+    return v.lower()
+
+
+HexColor = Annotated[str | None, AfterValidator(validate_hex_color)]
 
 
 # --- QA ---
@@ -29,6 +42,9 @@ class RecordUpdate(BaseModel):
     googlePhotoUrl: str | None = None
     icloudUrl: str | None = None
     myboxUrl: str | None = None
+    color: HexColor = None
+    bgColor: HexColor = None
+    keyColor: HexColor = None
 
 
 class RecordResponse(BaseModel):
@@ -38,6 +54,9 @@ class RecordResponse(BaseModel):
     googlePhotoUrl: str | None = None
     icloudUrl: str | None = None
     myboxUrl: str | None = None
+    color: str | None = None
+    bgColor: str | None = None
+    keyColor: str | None = None
     createdAt: datetime
     updatedAt: datetime
 
@@ -71,6 +90,9 @@ class RecordDetailResponse(BaseModel):
     googlePhotoUrl: str | None = None
     icloudUrl: str | None = None
     myboxUrl: str | None = None
+    color: str | None = None
+    bgColor: str | None = None
+    keyColor: str | None = None
     mediaList: list[MediaItem] = []
     coverImage: CoverImageInfo | None = None
     lifestory: LifestorySummary | None = None
