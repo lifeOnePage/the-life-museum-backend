@@ -57,7 +57,11 @@ class RecordService:
     async def get_records_by_user(self, user_id: uuid.UUID) -> list[Record]:
         stmt = (
             select(Record)
-            .options(selectinload(Record.cover_image))
+            .options(
+                selectinload(Record.cover_image),
+                selectinload(Record.lifestory),
+                selectinload(Record.timeline).selectinload(Timeline.events),
+            )
             .where(Record.user_id == user_id)
             .order_by(Record.created_at.desc())
         )

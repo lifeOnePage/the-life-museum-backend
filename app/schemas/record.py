@@ -145,5 +145,10 @@ class RecordListItem(BaseModel):
     title: str
     subtitle: str | None = None
     coverImage: CoverImageInfo | None = None
+    bgColor: str | None = None
+    color: str | None = None
+    keyColor: str | None = None
+    lifestory: LifestorySummary | None = None
+    timeline: TimelineSummary | None = None
     createdAt: datetime
     updatedAt: datetime
