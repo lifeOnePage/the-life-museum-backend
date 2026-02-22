@@ -238,6 +238,10 @@ class RecordService:
             res = await self.db.execute(stmt)
             return res.scalar_one()
 
+    async def delete_record(self, record: Record) -> None:
+        await self.db.delete(record)
+        await self.db.commit()
+
     async def save_cover_image(self, record_id: uuid.UUID, url: str) -> CoverImage:
         stmt = select(CoverImage).where(CoverImage.record_id == record_id)
         result = await self.db.execute(stmt)

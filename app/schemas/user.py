@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
@@ -20,7 +21,7 @@ class UserUpdate(BaseModel):
 
 
 class UserResponse(UserBase):
-    id: int
+    id: uuid.UUID
     profile_image: str | None = None
     is_active: bool
     is_verified: bool

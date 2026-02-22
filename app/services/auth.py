@@ -1,8 +1,10 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User, PhoneVerification
+from app.models.email_verification import EmailVerification
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash, verify_password
 from app.core.exceptions import BadRequestException, NotFoundException, ConflictException
@@ -20,7 +22,9 @@ class AuthService:
         result = await self.db.execute(select(User).where(User.phone == phone))
         return result.scalar_one_or_none()
 
-    async def get_user_by_id(self, user_id: int) -> User | None:
+    async def get_user_by_id(self, user_id: str | uuid.UUID) -> User | None:
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
         result = await self.db.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
@@ -64,7 +68,6 @@ class AuthService:
         return user
 
     async def create_phone_verification(self, phone: str, code: str) -> PhoneVerification:
-        # Delete existing verifications for this phone
         existing = await self.db.execute(
             select(PhoneVerification).where(PhoneVerification.phone == phone)
         )
@@ -107,3 +110,88 @@ class AuthService:
         verification.is_verified = True
         await self.db.commit()
         return True
+
+    async def create_email_verification(self, email: str, code: str) -> EmailVerification:
+        existing = await self.db.execute(
+            select(EmailVerification).where(EmailVerification.email == email)
+        )
+        for v in existing.scalars().all():
+            await self.db.delete(v)
+
+        verification = EmailVerification(
+            email=email,
+            code=code,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+        self.db.add(verification)
+        await self.db.commit()
+        await self.db.refresh(verification)
+        return verification
+
+    async def verify_email_code(self, email: str, code: str) -> bool:
+        result = await self.db.execute(
+            select(EmailVerification).where(
+                EmailVerification.email == email,
+                EmailVerification.is_verified == False,
+            )
+        )
+        verification = result.scalar_one_or_none()
+
+        if not verification:
+            raise NotFoundException("Verification not found")
+
+        if verification.expires_at < datetime.now(timezone.utc):
+            raise BadRequestException("Verification code expired")
+
+        if verification.attempts >= 5:
+            raise BadRequestException("Too many attempts")
+
+        if verification.code != code:
+            verification.attempts += 1
+            await self.db.commit()
+            raise BadRequestException("Invalid verification code")
+
+        verification.is_verified = True
+        await self.db.commit()
+        return True
+
+    async def get_or_create_user_by_phone(self, phone: str) -> tuple[User, bool]:
+        """Returns (user, is_new_user)"""
+        user = await self.get_user_by_phone(phone)
+        if user:
+            return user, False
+
+        user = User(
+            phone=phone,
+            name=None,
+            is_verified=True,
+        )
+        self.db.add(user)
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user, True
+
+    async def get_or_create_user_by_email(self, email: str) -> tuple[User, bool]:
+        """Returns (user, is_new_user)"""
+        user = await self.get_user_by_email(email)
+        if user:
+            return user, False
+
+        user = User(
+            email=email,
+            name=None,
+            is_verified=True,
+        )
+        self.db.add(user)
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user, True
+
+    async def complete_signup(self, user_id: str | uuid.UUID, name: str) -> User:
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise NotFoundException("User not found")
+        user.name = name
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user

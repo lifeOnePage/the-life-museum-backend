@@ -62,7 +62,7 @@ async def get_current_user(
         )
 
     auth_service = AuthService(db)
-    user = await auth_service.get_user_by_id(int(user_id))
+    user = await auth_service.get_user_by_id(user_id)
 
     if user is None:
         raise HTTPException(
@@ -104,7 +104,7 @@ async def get_current_user_optional(
             return None
 
         auth_service = AuthService(db)
-        user = await auth_service.get_user_by_id(int(user_id))
+        user = await auth_service.get_user_by_id(user_id)
 
         if user is None or not user.is_active:
             return None

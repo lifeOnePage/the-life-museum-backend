@@ -1,3 +1,5 @@
+import uuid
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -30,3 +32,30 @@ class PhoneVerificationConfirm(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+
+class AuthUserInfo(BaseModel):
+    id: uuid.UUID
+    name: str | None
+    phone: str | None
+    email: str | None
+
+
+class AuthResponse(BaseModel):
+    accessToken: str
+    refreshToken: str
+    isNewUser: bool
+    user: AuthUserInfo
+
+
+class EmailVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class EmailVerificationConfirm(BaseModel):
+    email: EmailStr
+    code: str
+
+
+class CompleteSignupRequest(BaseModel):
+    name: str

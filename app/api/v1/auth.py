@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,26 +10,48 @@ from app.schemas.auth import (
     PhoneVerificationRequest,
     PhoneVerificationConfirm,
     RefreshTokenRequest,
+    AuthResponse,
+    AuthUserInfo,
+    EmailVerificationRequest,
+    EmailVerificationConfirm,
+    CompleteSignupRequest,
 )
 from app.schemas.user import UserCreate, UserResponse
+from app.schemas.common import ApiResponse, success_response
 from app.services.auth import AuthService
 from app.services.sms import get_sms_service
+from app.services.email import get_email_service
 from app.services.oauth import GoogleOAuth, KakaoOAuth
 from app.models.user import User, OAuthAccount, OAuthProvider
 from app.core.security import create_access_token, create_refresh_token, decode_token
 from app.core.exceptions import BadRequestException, UnauthorizedException
+from app.api.deps import get_current_user
 
 router = APIRouter()
 
 
-@router.post("/register", response_model=UserResponse)
+def _build_auth_response(user: User, is_new_user: bool) -> AuthResponse:
+    return AuthResponse(
+        accessToken=create_access_token(user.id),
+        refreshToken=create_refresh_token(user.id),
+        isNewUser=is_new_user,
+        user=AuthUserInfo(
+            id=user.id,
+            name=user.name,
+            phone=user.phone,
+            email=user.email,
+        ),
+    )
+
+
+@router.post("/register")
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     auth_service = AuthService(db)
     user = await auth_service.create_user(user_data)
-    return user
+    return success_response(UserResponse.model_validate(user))
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)):
     auth_service = AuthService(db)
     user = await auth_service.authenticate(
@@ -40,13 +62,14 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user:
         raise UnauthorizedException("Invalid credentials")
 
-    return Token(
+    token = Token(
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
     )
+    return success_response(token)
 
 
-@router.post("/refresh", response_model=Token)
+@router.post("/refresh")
 async def refresh_token(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
     payload = decode_token(data.refresh_token)
     if not payload or payload.get("type") != "refresh":
@@ -54,15 +77,16 @@ async def refresh_token(data: RefreshTokenRequest, db: AsyncSession = Depends(ge
 
     user_id = payload.get("sub")
     auth_service = AuthService(db)
-    user = await auth_service.get_user_by_id(int(user_id))
+    user = await auth_service.get_user_by_id(user_id)
 
     if not user or not user.is_active:
         raise UnauthorizedException("User not found or inactive")
 
-    return Token(
+    token = Token(
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
     )
+    return success_response(token)
 
 
 # Phone verification endpoints
@@ -77,7 +101,7 @@ async def send_phone_verification(
     await auth_service.create_phone_verification(data.phone, code)
     await sms_service.send_verification_code(data.phone, code)
 
-    return {"message": "Verification code sent"}
+    return success_response(message="Verification code sent")
 
 
 @router.post("/phone/verify")
@@ -86,7 +110,51 @@ async def verify_phone(
 ):
     auth_service = AuthService(db)
     await auth_service.verify_phone_code(data.phone, data.code)
-    return {"message": "Phone verified successfully"}
+    user, is_new_user = await auth_service.get_or_create_user_by_phone(data.phone)
+    return success_response(_build_auth_response(user, is_new_user))
+
+
+# Email verification endpoints
+@router.post("/email/send-code")
+async def send_email_verification(
+    data: EmailVerificationRequest, db: AsyncSession = Depends(get_db)
+):
+    email_service = get_email_service()
+    auth_service = AuthService(db)
+
+    code = email_service.generate_verification_code()
+    await auth_service.create_email_verification(data.email, code)
+    await email_service.send_verification_code(data.email, code)
+
+    return success_response(message="Verification code sent")
+
+
+@router.post("/email/verify")
+async def verify_email(
+    data: EmailVerificationConfirm, db: AsyncSession = Depends(get_db)
+):
+    auth_service = AuthService(db)
+    await auth_service.verify_email_code(data.email, data.code)
+    user, is_new_user = await auth_service.get_or_create_user_by_email(data.email)
+    return success_response(_build_auth_response(user, is_new_user))
+
+
+@router.post("/complete-signup")
+async def complete_signup(
+    data: CompleteSignupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    auth_service = AuthService(db)
+    user = await auth_service.complete_signup(current_user.id, data.name)
+    return success_response(
+        AuthUserInfo(
+            id=user.id,
+            name=user.name,
+            phone=user.phone,
+            email=user.email,
+        )
+    )
 
 
 # Google OAuth endpoints
@@ -97,7 +165,7 @@ async def google_login():
     return RedirectResponse(url=auth_url)
 
 
-@router.get("/google/callback", response_model=Token)
+@router.get("/google/callback")
 async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     oauth = GoogleOAuth()
 
@@ -107,7 +175,6 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         raise BadRequestException(f"OAuth failed: {str(e)}")
 
-    # Find or create user
     result = await db.execute(
         select(OAuthAccount).where(
             OAuthAccount.provider == OAuthProvider.GOOGLE,
@@ -118,10 +185,11 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
 
     if oauth_account:
         user = oauth_account.user
+        is_new_user = False
     else:
-        # Check if user with this email exists
         auth_service = AuthService(db)
         user = await auth_service.get_user_by_email(user_info.email)
+        is_new_user = user is None
 
         if not user:
             user = User(
@@ -143,10 +211,7 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
         db.add(oauth_account)
         await db.commit()
 
-    return Token(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
-    )
+    return success_response(_build_auth_response(user, is_new_user))
 
 
 # Kakao OAuth endpoints
@@ -157,7 +222,7 @@ async def kakao_login():
     return RedirectResponse(url=auth_url)
 
 
-@router.get("/kakao/callback", response_model=Token)
+@router.get("/kakao/callback")
 async def kakao_callback(code: str, db: AsyncSession = Depends(get_db)):
     oauth = KakaoOAuth()
 
@@ -167,7 +232,6 @@ async def kakao_callback(code: str, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         raise BadRequestException(f"OAuth failed: {str(e)}")
 
-    # Find or create user
     result = await db.execute(
         select(OAuthAccount).where(
             OAuthAccount.provider == OAuthProvider.KAKAO,
@@ -178,13 +242,16 @@ async def kakao_callback(code: str, db: AsyncSession = Depends(get_db)):
 
     if oauth_account:
         user = oauth_account.user
+        is_new_user = False
     else:
         user = None
+        is_new_user = True
 
-        # Check if user with this email exists (if email provided)
         if user_info.email:
             auth_service = AuthService(db)
             user = await auth_service.get_user_by_email(user_info.email)
+            if user:
+                is_new_user = False
 
         if not user:
             user = User(
@@ -206,7 +273,4 @@ async def kakao_callback(code: str, db: AsyncSession = Depends(get_db)):
         db.add(oauth_account)
         await db.commit()
 
-    return Token(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
-    )
+    return success_response(_build_auth_response(user, is_new_user))

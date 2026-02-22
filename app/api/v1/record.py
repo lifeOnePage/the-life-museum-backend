@@ -111,6 +111,21 @@ async def update_record(
     return success_response(data=data)
 
 
+@router.delete("/{record_id}", response_model=ApiResponse)
+async def delete_record(
+    record_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    await service.delete_record(record)
+    return success_response(data=None, message="Record deleted")
+
+
 @router.get("/{record_id}", response_model=ApiResponse)
 async def get_record(
     record_id: uuid.UUID,
