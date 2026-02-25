@@ -45,6 +45,7 @@ class RecordUpdate(BaseModel):
     color: HexColor = None
     bgColor: HexColor = None
     keyColor: HexColor = None
+    theme: str | None = None
 
 
 class RecordResponse(BaseModel):
@@ -57,6 +58,7 @@ class RecordResponse(BaseModel):
     color: str | None = None
     bgColor: str | None = None
     keyColor: str | None = None
+    theme: str | None = None
     createdAt: datetime
     updatedAt: datetime
 
@@ -93,6 +95,7 @@ class RecordDetailResponse(BaseModel):
     color: str | None = None
     bgColor: str | None = None
     keyColor: str | None = None
+    theme: str | None = None
     mediaList: list[MediaItem] = []
     coverImage: CoverImageInfo | None = None
     lifestory: LifestorySummary | None = None
@@ -148,6 +151,7 @@ class RecordListItem(BaseModel):
     bgColor: str | None = None
     color: str | None = None
     keyColor: str | None = None
+    theme: str | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
     createdAt: datetime

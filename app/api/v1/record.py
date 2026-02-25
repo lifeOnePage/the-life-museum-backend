@@ -58,6 +58,7 @@ async def create_record(
         color=record.color,
         bgColor=record.bg_color,
         keyColor=record.key_color,
+        theme=record.theme,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -86,6 +87,7 @@ async def update_record(
         "color": "color",
         "bgColor": "bg_color",
         "keyColor": "key_color",
+        "theme": "theme",
     }
     update_data = {}
     for schema_field, model_field in field_mapping.items():
@@ -105,6 +107,7 @@ async def update_record(
         color=record.color,
         bgColor=record.bg_color,
         keyColor=record.key_color,
+        theme=record.theme,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -173,6 +176,7 @@ async def get_record(
         color=record.color,
         bgColor=record.bg_color,
         keyColor=record.key_color,
+        theme=record.theme,
         mediaList=media_list,
         coverImage=cover_image,
         lifestory=lifestory,
