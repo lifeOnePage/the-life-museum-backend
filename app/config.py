@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     KAKAO_CLIENT_SECRET: str = ""
     KAKAO_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/kakao/callback"
 
+    # Email (Resend)
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "noreply@thelifemuseum.com"
+
     # SMS (placeholder - configure when service is selected)
     SMS_API_KEY: str = ""
     SMS_API_SECRET: str = ""
