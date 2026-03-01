@@ -330,6 +330,7 @@ async def save_cover_img_temp(
 async def generate_cover_videos(
     record_id: uuid.UUID,
     prompt: str = Form(...),
+    image_strength: float = Form(0.5),
     reference_image: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_user),
@@ -354,7 +355,7 @@ async def generate_cover_videos(
     storage = R2StorageService()
 
     async def _generate_and_upload() -> str:
-        video_bytes = await replicate.generate_video(prompt, reference_image_url)
+        video_bytes = await replicate.generate_video(prompt, reference_image_url, image_strength)
         url = await storage.upload_file(video_bytes, "video/mp4", "mp4")
         return url
 

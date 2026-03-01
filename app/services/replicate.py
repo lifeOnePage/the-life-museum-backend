@@ -9,11 +9,35 @@ logger = logging.getLogger(__name__)
 
 REPLICATE_API_URL = "https://api.replicate.com/v1"
 
+# minimax/video-01은 strength 파라미터를 지원하지 않으므로
+# 강도에 따라 프롬프트에 지시어를 추가하는 방식으로 대응한다.
+_STRENGTH_LOW_SUFFIX = (
+    ", loosely inspired by the reference image, prioritizing creative interpretation"
+)
+_STRENGTH_HIGH_SUFFIX = (
+    ", closely following the visual style, composition, and color palette"
+    " of the reference image throughout the entire video"
+)
+
+
+def _apply_image_strength(prompt: str, strength: float) -> str:
+    """strength(0.0~1.0)에 따라 프롬프트에 참고 이미지 지시어를 추가한다.
+
+    - 0.0 ~ 0.35 (낮음): 느슨하게 참고 → 모델이 프롬프트 위주로 생성
+    - 0.35 ~ 0.65 (보통): 기본 동작, 수정 없음
+    - 0.65 ~ 1.0 (높음): 스타일·구도를 가능한 한 유지하도록 지시
+    """
+    if strength < 0.35:
+        return prompt + _STRENGTH_LOW_SUFFIX
+    if strength > 0.65:
+        return prompt + _STRENGTH_HIGH_SUFFIX
+    return prompt
+
 
 class ReplicateService:
     MODEL = "minimax/video-01"
-    POLL_INTERVAL = 2  # seconds
-    MAX_POLLS = 90  # 3 minutes max
+    POLL_INTERVAL = 2   # seconds between polls
+    MAX_POLLS = 150     # 150 × 2s = 300s (5 minutes)
 
     def _headers(self) -> dict:
         return {
@@ -22,15 +46,37 @@ class ReplicateService:
         }
 
     async def generate_video(
-        self, prompt: str, reference_image_url: str | None = None
+        self,
+        prompt: str,
+        reference_image_url: str | None = None,
+        image_strength: float = 0.5,
     ) -> bytes:
         """Generate a short video from a text prompt (+ optional first frame).
 
-        Returns raw video bytes on success, raises on error/timeout.
+        Args:
+            prompt: 텍스트 프롬프트
+            reference_image_url: 참고 이미지 R2 URL (선택)
+            image_strength: 참고 이미지 반영 강도 0.0~1.0 (기본 0.5)
+                            minimax/video-01이 strength 파라미터를 미지원하므로
+                            프롬프트 지시어로 간접 제어한다.
+
+        Returns:
+            raw MP4 bytes
         """
-        input_payload: dict = {"prompt": prompt}
+        effective_prompt = prompt
+        if reference_image_url:
+            effective_prompt = _apply_image_strength(prompt, image_strength)
+
+        input_payload: dict = {"prompt": effective_prompt}
         if reference_image_url:
             input_payload["first_frame_image"] = reference_image_url
+
+        logger.info(
+            "Replicate generate_video | model=%s | strength=%.2f | prompt=%r",
+            self.MODEL,
+            image_strength if reference_image_url else 0.0,
+            effective_prompt,
+        )
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             # 1. Create prediction
@@ -44,7 +90,7 @@ class ReplicateService:
             prediction_id = prediction["id"]
             logger.info("Replicate prediction created: %s", prediction_id)
 
-            # 2. Poll until succeeded / failed
+            # 2. Poll until succeeded / failed (max 5 minutes)
             for attempt in range(self.MAX_POLLS):
                 await asyncio.sleep(self.POLL_INTERVAL)
                 poll_resp = await client.get(
