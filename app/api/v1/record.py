@@ -1,6 +1,7 @@
+import asyncio
 import uuid
 
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -24,10 +25,13 @@ from app.schemas.record import (
     SaveTimelineRequest,
     TimelineResponse,
     CoverImageResponse,
+    CoverGenerateResponse,
+    CoverUrlRequest,
 )
 from app.services.record import RecordService
 from app.services.openai import OpenAIService
 from app.services.storage import R2StorageService
+from app.services.replicate import ReplicateService
 from app.core.exceptions import NotFoundException
 
 router = APIRouter()
@@ -214,9 +218,16 @@ async def create_storylines(
     body: CreateStorylinesRequest,
     current_user: User = Depends(get_current_user),
 ):
+    if not body.prompt or not body.prompt.strip():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="내용을 입력해주세요")
+
     openai_service = OpenAIService()
-    qa_dicts = [qa.model_dump() for qa in body.qaList]
-    result = await openai_service.generate_lifestory(qa_dicts, body.mood)
+    result = await openai_service.generate_story(
+        prompt=body.prompt,
+        album_title=body.albumTitle,
+        album_subtitle=body.albumSubtitle,
+    )
 
     data = CreateStorylinesResponse(result=result)
     return success_response(data=data)
@@ -310,3 +321,68 @@ async def save_cover_img_temp(
 
     data = CoverImageResponse(url=cover.url)
     return success_response(data=data, code=201, message="Cover image uploaded")
+
+
+@router.post("/{record_id}/cover/generate", response_model=ApiResponse)
+async def generate_cover_videos(
+    record_id: uuid.UUID,
+    prompt: str = Form(...),
+    reference_image: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Generate 3 cover videos in parallel using Replicate, upload to R2, return URLs."""
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    # Upload reference image to R2 if provided
+    reference_image_url: str | None = None
+    if reference_image and reference_image.filename:
+        img_content = await reference_image.read()
+        if img_content:
+            ext = reference_image.filename.rsplit(".", 1)[-1] if "." in reference_image.filename else "jpg"
+            content_type = reference_image.content_type or "image/jpeg"
+            storage = R2StorageService()
+            reference_image_url = await storage.upload_file(img_content, content_type, ext)
+
+    replicate = ReplicateService()
+    storage = R2StorageService()
+
+    async def _generate_and_upload() -> str:
+        video_bytes = await replicate.generate_video(prompt, reference_image_url)
+        url = await storage.upload_file(video_bytes, "video/mp4", "mp4")
+        return url
+
+    results = await asyncio.gather(
+        _generate_and_upload(),
+        _generate_and_upload(),
+        _generate_and_upload(),
+        return_exceptions=True,
+    )
+
+    urls = [r for r in results if isinstance(r, str)]
+    if not urls:
+        raise HTTPException(status_code=500, detail="모든 영상 생성에 실패했습니다")
+
+    data = CoverGenerateResponse(videos=urls)
+    return success_response(data=data, code=201, message="Cover videos generated")
+
+
+@router.put("/{record_id}/cover/url", response_model=ApiResponse)
+async def save_cover_url(
+    record_id: uuid.UUID,
+    body: CoverUrlRequest,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Save an already-uploaded R2 URL as the record's cover image."""
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    cover = await service.save_cover_image(record_id, body.url)
+    data = CoverImageResponse(url=cover.url)
+    return success_response(data=data)

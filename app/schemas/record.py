@@ -114,8 +114,9 @@ class LifestoryDetailResponse(BaseModel):
 
 
 class CreateStorylinesRequest(BaseModel):
-    qaList: list[QaItem]
-    mood: str
+    prompt: str
+    albumTitle: str | None = None
+    albumSubtitle: str | None = None
 
 
 class CreateStorylinesResponse(BaseModel):
@@ -140,6 +141,14 @@ class TimelineResponse(BaseModel):
 # --- Cover Image ---
 class CoverImageResponse(BaseModel):
     url: str
+
+
+class CoverGenerateResponse(BaseModel):
+    videos: list[str]  # R2 URLs (up to 3; partial failure allowed)
+
+
+class CoverUrlRequest(BaseModel):
+    url: str  # Already-uploaded R2 URL to save to DB
 
 
 # --- Record List (GET /library) ---
