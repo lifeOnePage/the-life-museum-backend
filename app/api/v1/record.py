@@ -359,9 +359,9 @@ async def generate_cover_videos(
         url = await storage.upload_file(video_bytes, "video/mp4", "mp4")
         return url
 
+    # Replicate의 동시 예측 생성 한도로 인해 1개씩 순차 생성
+    # 프론트엔드에서 여러 번 요청하여 최대 3개를 누적하는 방식으로 사용
     results = await asyncio.gather(
-        _generate_and_upload(),
-        _generate_and_upload(),
         _generate_and_upload(),
         return_exceptions=True,
     )
@@ -374,7 +374,7 @@ async def generate_cover_videos(
             urls.append(r)
 
     if not urls:
-        raise HTTPException(status_code=500, detail="모든 영상 생성에 실패했습니다")
+        raise HTTPException(status_code=500, detail="영상 생성에 실패했습니다")
 
     data = CoverGenerateResponse(videos=urls)
     return success_response(data=data, code=201, message="Cover videos generated")
