@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+import tempfile
 
 import httpx
 
@@ -19,6 +21,9 @@ _STRENGTH_HIGH_SUFFIX = (
     " of the reference image throughout the entire video"
 )
 
+# 출력 해상도: minimax/video-01은 해상도 파라미터 미지원 → ffmpeg 후처리로 보장
+OUTPUT_SIZE = 720
+
 
 def _apply_image_strength(prompt: str, strength: float) -> str:
     """strength(0.0~1.0)에 따라 프롬프트에 참고 이미지 지시어를 추가한다.
@@ -32,6 +37,64 @@ def _apply_image_strength(prompt: str, strength: float) -> str:
     if strength > 0.65:
         return prompt + _STRENGTH_HIGH_SUFFIX
     return prompt
+
+
+async def _crop_to_square(video_bytes: bytes, size: int = OUTPUT_SIZE) -> bytes:
+    """ffmpeg로 비디오를 센터-크롭(1:1) 후 size×size로 리사이즈한다.
+
+    처리 순서:
+      1. 임시 파일에 원본 bytes 기록
+      2. ffmpeg: crop=min(iw,ih):min(iw,ih) → scale=size:size
+      3. 결과 bytes 반환
+      4. 임시 파일 정리 (성공·실패 무관)
+
+    ffmpeg 미설치 또는 오류 시 원본 bytes를 그대로 반환하고 경고 로그를 남긴다.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+        tmp.write(video_bytes)
+        in_path = tmp.name
+
+    out_path = in_path[:-4] + "_sq.mp4"
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y",
+            "-i", in_path,
+            # 센터 기준 정사각 크롭 후 목표 해상도로 스케일
+            "-vf", f"crop=min(iw\\,ih):min(iw\\,ih),scale={size}:{size}",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "23",
+            "-an",           # 오디오 스트림 제거 (영상 전용)
+            out_path,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            logger.warning(
+                "ffmpeg crop failed (rc=%d): %s",
+                proc.returncode,
+                stderr.decode(errors="replace"),
+            )
+            return video_bytes  # fallback: 원본 반환
+
+        result_size = os.path.getsize(out_path)
+        logger.info("ffmpeg crop succeeded → %dx%d, %d bytes", size, size, result_size)
+        with open(out_path, "rb") as f:
+            return f.read()
+
+    except FileNotFoundError:
+        logger.warning("ffmpeg not found; returning original video bytes as-is")
+        return video_bytes
+
+    finally:
+        for path in (in_path, out_path):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 class ReplicateService:
@@ -57,11 +120,9 @@ class ReplicateService:
             prompt: 텍스트 프롬프트
             reference_image_url: 참고 이미지 R2 URL (선택)
             image_strength: 참고 이미지 반영 강도 0.0~1.0 (기본 0.5)
-                            minimax/video-01이 strength 파라미터를 미지원하므로
-                            프롬프트 지시어로 간접 제어한다.
 
         Returns:
-            raw MP4 bytes
+            720×720 MP4 bytes (ffmpeg 후처리 적용)
         """
         effective_prompt = prompt
         if reference_image_url:
@@ -77,6 +138,8 @@ class ReplicateService:
             image_strength if reference_image_url else 0.0,
             effective_prompt,
         )
+
+        raw_bytes: bytes | None = None
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             # 1. Create prediction
@@ -120,10 +183,11 @@ class ReplicateService:
                             f"Replicate succeeded but no output URL: {data}"
                         )
 
-                    # 3. Download video bytes
+                    # 3. Download raw video bytes
                     dl_resp = await client.get(video_url, timeout=60.0)
                     dl_resp.raise_for_status()
-                    return dl_resp.content
+                    raw_bytes = dl_resp.content
+                    break  # exit poll loop
 
                 if status in ("failed", "canceled"):
                     error_msg = data.get("error", "unknown error")
@@ -131,7 +195,11 @@ class ReplicateService:
                         f"Replicate prediction {prediction_id} {status}: {error_msg}"
                     )
 
-            raise TimeoutError(
-                f"Replicate prediction {prediction_id} did not complete within "
-                f"{self.MAX_POLLS * self.POLL_INTERVAL}s"
-            )
+            else:
+                raise TimeoutError(
+                    f"Replicate prediction {prediction_id} did not complete within "
+                    f"{self.MAX_POLLS * self.POLL_INTERVAL}s"
+                )
+
+        # 4. Crop + resize to 720×720 (httpx 클라이언트 닫힌 후 실행)
+        return await _crop_to_square(raw_bytes)
