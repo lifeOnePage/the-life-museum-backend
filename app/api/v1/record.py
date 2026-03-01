@@ -1,7 +1,10 @@
 import asyncio
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -362,7 +365,13 @@ async def generate_cover_videos(
         return_exceptions=True,
     )
 
-    urls = [r for r in results if isinstance(r, str)]
+    urls = []
+    for i, r in enumerate(results):
+        if isinstance(r, Exception):
+            logger.error("Cover video generation #%d failed: %s: %s", i, type(r).__name__, r)
+        else:
+            urls.append(r)
+
     if not urls:
         raise HTTPException(status_code=500, detail="모든 영상 생성에 실패했습니다")
 
