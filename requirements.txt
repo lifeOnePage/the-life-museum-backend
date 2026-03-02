@@ -36,6 +36,9 @@ openai
 # Cloud Storage (Cloudflare R2)
 boto3
 
+# Video processing (bundled ffmpeg binary — no system ffmpeg required)
+imageio-ffmpeg
+
 # Development
 pytest>=7.0.0
 pytest-asyncio==0.23.4

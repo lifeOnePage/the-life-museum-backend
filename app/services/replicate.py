@@ -9,6 +9,15 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# imageio-ffmpeg가 있으면 번들 바이너리 사용 (Railway 등 system ffmpeg 없는 환경 대응)
+try:
+    import imageio_ffmpeg as _iio_ffmpeg
+    _FFMPEG_EXE = _iio_ffmpeg.get_ffmpeg_exe()
+    logger.info("ffmpeg binary: %s (imageio-ffmpeg)", _FFMPEG_EXE)
+except (ImportError, RuntimeError):
+    _FFMPEG_EXE = "ffmpeg"  # system ffmpeg fallback
+    logger.info("ffmpeg binary: system PATH")
+
 REPLICATE_API_URL = "https://api.replicate.com/v1"
 
 # minimax/video-01은 strength 파라미터를 지원하지 않으므로
@@ -58,7 +67,7 @@ async def _crop_to_square(video_bytes: bytes, size: int = OUTPUT_SIZE) -> bytes:
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-y",
+            _FFMPEG_EXE, "-y",
             "-i", in_path,
             # 센터 기준 정사각 크롭 후 목표 해상도로 스케일
             "-vf", f"crop=min(iw\\,ih):min(iw\\,ih),scale={size}:{size}",
@@ -86,7 +95,7 @@ async def _crop_to_square(video_bytes: bytes, size: int = OUTPUT_SIZE) -> bytes:
             return f.read()
 
     except FileNotFoundError:
-        logger.warning("ffmpeg not found; returning original video bytes as-is")
+        logger.warning("ffmpeg not found (%s); returning original video bytes as-is", _FFMPEG_EXE)
         return video_bytes
 
     finally:
