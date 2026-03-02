@@ -1,3 +1,4 @@
+import base64
 import random
 import string
 import logging
@@ -5,7 +6,7 @@ from abc import ABC, abstractmethod
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-import aiosmtplib
+import httpx
 
 from app.config import settings
 
@@ -18,6 +19,9 @@ _VERIFICATION_HTML = """\
   <div style="font-size:36px;font-weight:bold;letter-spacing:10px;padding:20px 0;">{code}</div>
   <p style="color:#888;font-size:12px;">5분 이내에 입력해 주세요. 본인이 요청하지 않은 경우 무시하세요.</p>
 </div>"""
+
+_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+_GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
 
 
 class EmailProvider(ABC):
@@ -33,14 +37,29 @@ class MockEmailProvider(EmailProvider):
         return True
 
 
-class GmailSMTPProvider(EmailProvider):
-    SMTP_HOST = "smtp.gmail.com"
-    SMTP_PORT = 587
+class GmailAPIProvider(EmailProvider):
+    """Gmail API provider using OAuth2 refresh token (HTTPS — works on Railway)."""
 
-    def __init__(self, user: str, app_password: str):
+    def __init__(self, user: str, refresh_token: str, client_id: str, client_secret: str):
         self.user = user
-        self.app_password = app_password
+        self.refresh_token = refresh_token
+        self.client_id = client_id
+        self.client_secret = client_secret
         self.sender = f"The Life Museum <{user}>"
+
+    async def _get_access_token(self, client: httpx.AsyncClient) -> str:
+        resp = await client.post(
+            _GOOGLE_TOKEN_URL,
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": self.refresh_token,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            },
+            timeout=10.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["access_token"]
 
     async def send_email(self, to: str, subject: str, html: str) -> bool:
         message = MIMEMultipart("alternative")
@@ -49,19 +68,22 @@ class GmailSMTPProvider(EmailProvider):
         message["Subject"] = subject
         message.attach(MIMEText(html, "html"))
 
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
         try:
-            await aiosmtplib.send(
-                message,
-                hostname=self.SMTP_HOST,
-                port=self.SMTP_PORT,
-                username=self.user,
-                password=self.app_password,
-                start_tls=True,
-            )
-            logger.info("Gmail SMTP sent to %s", to)
-            return True
+            async with httpx.AsyncClient() as client:
+                access_token = await self._get_access_token(client)
+                resp = await client.post(
+                    _GMAIL_SEND_URL,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={"raw": raw},
+                    timeout=10.0,
+                )
+                resp.raise_for_status()
+                logger.info("Gmail API sent to %s", to)
+                return True
         except Exception as e:
-            logger.error("Gmail SMTP error: %s", e)
+            logger.error("Gmail API error: %s", e)
             return False
 
 
@@ -79,6 +101,18 @@ class EmailService:
 
 
 def get_email_service() -> EmailService:
-    if settings.GMAIL_USER and settings.GMAIL_APP_PASSWORD:
-        return EmailService(GmailSMTPProvider(settings.GMAIL_USER, settings.GMAIL_APP_PASSWORD))
+    if (
+        settings.GMAIL_USER
+        and settings.GMAIL_REFRESH_TOKEN
+        and settings.GOOGLE_CLIENT_ID
+        and settings.GOOGLE_CLIENT_SECRET
+    ):
+        return EmailService(
+            GmailAPIProvider(
+                user=settings.GMAIL_USER,
+                refresh_token=settings.GMAIL_REFRESH_TOKEN,
+                client_id=settings.GOOGLE_CLIENT_ID,
+                client_secret=settings.GOOGLE_CLIENT_SECRET,
+            )
+        )
     return EmailService(MockEmailProvider())

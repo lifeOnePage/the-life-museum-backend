@@ -27,9 +27,9 @@ class Settings(BaseSettings):
     KAKAO_CLIENT_SECRET: str = ""
     KAKAO_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/kakao/callback"
 
-    # Email (Gmail SMTP)
+    # Email (Gmail API)
     GMAIL_USER: str = ""
-    GMAIL_APP_PASSWORD: str = ""
+    GMAIL_REFRESH_TOKEN: str = ""
 
     # SMS (placeholder - configure when service is selected)
     SMS_API_KEY: str = ""
