@@ -26,6 +26,9 @@ email-validator==2.1.0.post1
 selenium==4.17.2
 webdriver-manager==4.0.1
 
+# Email (Gmail SMTP)
+aiosmtplib>=3.0.0
+
 # Utils
 python-dotenv==1.0.1
 requests==2.31.0

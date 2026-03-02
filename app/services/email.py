@@ -2,8 +2,10 @@ import random
 import string
 import logging
 from abc import ABC, abstractmethod
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-import httpx
+import aiosmtplib
 
 from app.config import settings
 
@@ -31,26 +33,35 @@ class MockEmailProvider(EmailProvider):
         return True
 
 
-class ResendEmailProvider(EmailProvider):
-    def __init__(self, api_key: str, sender: str):
-        self.api_key = api_key
-        self.sender = sender
+class GmailSMTPProvider(EmailProvider):
+    SMTP_HOST = "smtp.gmail.com"
+    SMTP_PORT = 587
+
+    def __init__(self, user: str, app_password: str):
+        self.user = user
+        self.app_password = app_password
+        self.sender = f"The Life Museum <{user}>"
 
     async def send_email(self, to: str, subject: str, html: str) -> bool:
+        message = MIMEMultipart("alternative")
+        message["From"] = self.sender
+        message["To"] = to
+        message["Subject"] = subject
+        message.attach(MIMEText(html, "html"))
+
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.resend.com/emails",
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={"from": self.sender, "to": [to], "subject": subject, "html": html},
-                    timeout=10.0,
-                )
-                return response.status_code == 200
+            await aiosmtplib.send(
+                message,
+                hostname=self.SMTP_HOST,
+                port=self.SMTP_PORT,
+                username=self.user,
+                password=self.app_password,
+                start_tls=True,
+            )
+            logger.info("Gmail SMTP sent to %s", to)
+            return True
         except Exception as e:
-            logger.error("Resend email error: %s", e)
+            logger.error("Gmail SMTP error: %s", e)
             return False
 
 
@@ -68,6 +79,6 @@ class EmailService:
 
 
 def get_email_service() -> EmailService:
-    if settings.RESEND_API_KEY:
-        return EmailService(ResendEmailProvider(settings.RESEND_API_KEY, settings.EMAIL_FROM))
+    if settings.GMAIL_USER and settings.GMAIL_APP_PASSWORD:
+        return EmailService(GmailSMTPProvider(settings.GMAIL_USER, settings.GMAIL_APP_PASSWORD))
     return EmailService(MockEmailProvider())
