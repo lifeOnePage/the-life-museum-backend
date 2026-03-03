@@ -40,7 +40,8 @@ DATABASE_URL
 SECRET_KEY
 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
 KAKAO_CLIENT_ID / KAKAO_CLIENT_SECRET
-RESEND_API_KEY
+GMAIL_USER                # Gmail 발신 계정
+GMAIL_REFRESH_TOKEN       # Gmail OAuth2 리프레시 토큰
 OPENAI_API_KEY
 REPLICATE_API_TOKEN       # Replicate AI 영상 생성
 R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY
@@ -79,10 +80,28 @@ video_bytes = await replicate.generate_video(prompt, reference_image_url)
 | 항목 | 값 |
 |------|----|
 | 모델 | `minimax/video-01` |
-| 인풋 | `prompt` (필수), `first_frame_image` (선택, URL) |
-| 폴링 | 2초 간격 × 최대 90회 (3분) |
+| 인풋 | `prompt` (필수), `first_frame_image` (선택, URL), `image_strength` (기본 0.5) |
+| 폴링 | 2초 간격 × 최대 150회 (5분) |
 | 타임아웃 | `TimeoutError` raise → 엔드포인트에서 500 반환 |
-| 부분 실패 | `asyncio.gather(return_exceptions=True)` — 1개 이상 성공 시 OK |
+| 후처리 | `imageio-ffmpeg`로 720×720 크롭/리사이즈 (`_crop_to_square()`) |
+
+### `services/email.py` — GmailAPIProvider
+
+Gmail OAuth2 방식(리프레시 토큰)으로 이메일 발송.
+
+- `GMAIL_USER`: 발신 계정 주소
+- `GMAIL_REFRESH_TOKEN`: 최초 인증 후 갱신하여 `.env`에 저장
+- 액세스 토큰을 자동 갱신하므로 별도 cronjob 불필요
+
+---
+
+## API 엔드포인트 — Library (`/api/v1/library`)
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/` | 현재 사용자의 앨범 목록 반환 (인증 필수) |
+
+응답 필드: `id, title, subtitle, coverImage, bgColor, color, keyColor, theme, lifestory, timeline, createdAt, updatedAt`
 
 ---
 
@@ -99,18 +118,18 @@ video_bytes = await replicate.generate_video(prompt, reference_image_url)
 | PUT | `/{id}/lifestory` | 라이프스토리 저장 |
 | PUT | `/{id}/timeline` | 타임라인 저장 |
 | POST | `/{id}/cover/temp` | 파일 업로드 → R2 → DB 저장 |
-| POST | `/{id}/cover/generate` | **AI 영상 생성** (Replicate, 3개 병렬) |
+| POST | `/{id}/cover/generate` | **AI 영상 생성** (Replicate, 1개 순차) |
 | PUT | `/{id}/cover/url` | **기존 R2 URL을 cover로 DB 저장** |
 
 ### `POST /{id}/cover/generate`
 
 - Content-Type: `multipart/form-data`
-- 필드: `prompt` (string), `reference_image` (file, 선택)
+- 필드: `prompt` (string), `reference_image` (file, 선택), `image_strength` (float, 기본 0.5)
 - 참고 이미지가 있으면 R2에 먼저 업로드 후 URL을 Replicate에 전달
-- `asyncio.gather` 3개 병렬 생성 후 성공한 URL만 반환
+- **1개 영상을 순차 생성**하여 URL 반환. 여러 개가 필요하면 프론트엔드가 최대 3회 별도 요청으로 누적
 
 ```json
-{ "ok": true, "data": { "videos": ["https://...mp4", "https://...mp4"] } }
+{ "ok": true, "data": { "videos": ["https://...mp4"] } }
 ```
 
 ### `PUT /{id}/cover/url`
@@ -134,8 +153,24 @@ video_bytes = await replicate.generate_video(prompt, reference_image_url)
 
 ---
 
+## database.py 주의사항
+
+Neon 서버리스 Postgres + PgBouncer 환경에서 idle 커넥션이 ~5분 후 끊기는 문제를 방지하기 위해:
+
+```python
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,   # 재사용 전 커넥션 생존 여부 확인
+    pool_recycle=300,     # 5분마다 커넥션 교체
+)
+```
+
+`pool_pre_ping=True`가 없으면 idle 후 첫 쿼리에서 `asyncpg.exceptions.ConnectionDoesNotExistError` 발생.
+
+---
+
 ## 주의사항
 
 - `services/replicate.py`는 동기 boto3(R2)와 달리 완전 비동기(`httpx.AsyncClient`)
-- 3개 병렬 생성은 각 요청이 최대 3분이므로 FastAPI 타임아웃 설정 확인 필요
+- 영상 생성 1회당 최대 5분 소요 — FastAPI 타임아웃 설정 확인 필요
 - Replicate `output`은 모델에 따라 `list[str]` 또는 `str`일 수 있음 — 두 케이스 모두 처리됨
