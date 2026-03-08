@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, AfterValidator
 
@@ -163,5 +163,11 @@ class RecordListItem(BaseModel):
     theme: str | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
+    role: Literal["owner", "shared"] = "owner"
     createdAt: datetime
     updatedAt: datetime
+
+
+# --- Share ---
+class ShareRecordRequest(BaseModel):
+    url: str  # walk/{id} URL (전체 URL 또는 경로 포함)

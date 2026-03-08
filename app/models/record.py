@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from app.models.lifestory import Lifestory
     from app.models.timeline import Timeline
     from app.models.user import User
+    from app.models.user_record_association import UserRecordAssociation
 
 
 class Record(Base):
@@ -33,11 +34,6 @@ class Record(Base):
         server_default=text("gen_random_uuid()"),
     )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
     creator_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
@@ -80,18 +76,18 @@ class Record(Base):
         server_default=text("'{}'::text[]"),
     )
 
-    # 관계: Record(N) - User(1) (소유자)
-    user: Mapped["User"] = relationship(
-        "User",
-        back_populates="records",
-        foreign_keys=[user_id],
-    )
-
     # 관계: Record(N) - User(1) (생성자)
     creator: Mapped["User"] = relationship(
         "User",
         back_populates="created_records",
         foreign_keys=[creator_id],
+    )
+
+    # 관계: Record(N) - UserRecordAssociation(N)
+    user_associations: Mapped[List["UserRecordAssociation"]] = relationship(
+        "UserRecordAssociation",
+        back_populates="record",
+        cascade="all, delete-orphan",
     )
 
     # 관계: Record(1) - CoverImage(0..1)

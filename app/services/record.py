@@ -6,11 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.record import Record
+from app.models.user_record_association import UserRecordAssociation
 from app.models.lifestory import Lifestory, Qa
 from app.models.timeline import Timeline, Event
 from app.models.cover_image import CoverImage
 from app.schemas.scraper import MediaItem
 from app.services.scraper import GooglePhotosScraper, ICloudScraper, MyBoxScraper
+from app.core.exceptions import ConflictException, ForbiddenException, NotFoundException
 
 
 logger = logging.getLogger(__name__)
@@ -30,7 +32,6 @@ class RecordService:
         mybox_url: str | None,
     ) -> Record:
         record = Record(
-            user_id=user_id,
             creator_id=user_id,
             title=title,
             subtitle=subtitle,
@@ -39,6 +40,10 @@ class RecordService:
             mybox_url=mybox_url,
         )
         self.db.add(record)
+        await self.db.flush()
+
+        assoc = UserRecordAssociation(user_id=user_id, record_id=record.id, role="owner")
+        self.db.add(assoc)
         await self.db.commit()
         await self.db.refresh(record)
         return record
@@ -54,19 +59,29 @@ class RecordService:
         await self.db.refresh(record)
         return record
 
-    async def get_records_by_user(self, user_id: uuid.UUID) -> list[Record]:
+    async def get_user_association(
+        self, user_id: uuid.UUID, record_id: uuid.UUID
+    ) -> UserRecordAssociation | None:
+        stmt = select(UserRecordAssociation).where(
+            UserRecordAssociation.user_id == user_id,
+            UserRecordAssociation.record_id == record_id,
+        )
+        return await self.db.scalar(stmt)
+
+    async def get_records_by_user(self, user_id: uuid.UUID) -> list[tuple[Record, str]]:
         stmt = (
-            select(Record)
+            select(Record, UserRecordAssociation.role)
+            .join(UserRecordAssociation, UserRecordAssociation.record_id == Record.id)
+            .where(UserRecordAssociation.user_id == user_id)
             .options(
                 selectinload(Record.cover_image),
                 selectinload(Record.lifestory),
                 selectinload(Record.timeline).selectinload(Timeline.events),
             )
-            .where(Record.user_id == user_id)
             .order_by(Record.created_at.desc())
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return [(row[0], row[1]) for row in result.all()]
 
     async def get_record_by_id(self, record_id: uuid.UUID) -> Record | None:
         stmt = (
@@ -238,8 +253,53 @@ class RecordService:
             res = await self.db.execute(stmt)
             return res.scalar_one()
 
-    async def delete_record(self, record: Record) -> None:
+    async def delete_record(self, user_id: uuid.UUID, record_id: uuid.UUID) -> None:
+        """소유자(owner)만 레코드 삭제 가능."""
+        assoc = await self.db.scalar(
+            select(UserRecordAssociation).where(
+                UserRecordAssociation.user_id == user_id,
+                UserRecordAssociation.record_id == record_id,
+                UserRecordAssociation.role == "owner",
+            )
+        )
+        if not assoc:
+            raise ForbiddenException("Only the owner can delete this record")
+
+        record = await self.get_record_by_id(record_id)
+        if not record:
+            raise NotFoundException("Record not found")
+
         await self.db.delete(record)
+        await self.db.commit()
+
+    async def share_record(self, user_id: uuid.UUID, record_id: uuid.UUID) -> Record:
+        """공유 앨범 추가: 이미 연관되어 있으면 Conflict."""
+        record = await self.get_record_by_id(record_id)
+        if not record:
+            raise NotFoundException("Record not found")
+
+        existing = await self.get_user_association(user_id, record_id)
+        if existing:
+            raise ConflictException("Already associated with this record")
+
+        assoc = UserRecordAssociation(user_id=user_id, record_id=record_id, role="shared")
+        self.db.add(assoc)
+        await self.db.commit()
+        return record
+
+    async def unshare_record(self, user_id: uuid.UUID, record_id: uuid.UUID) -> None:
+        """공유 제거: role='shared'인 연관만 삭제."""
+        assoc = await self.db.scalar(
+            select(UserRecordAssociation).where(
+                UserRecordAssociation.user_id == user_id,
+                UserRecordAssociation.record_id == record_id,
+                UserRecordAssociation.role == "shared",
+            )
+        )
+        if not assoc:
+            raise NotFoundException("Shared record association not found")
+
+        await self.db.delete(assoc)
         await self.db.commit()
 
     async def save_cover_image(self, record_id: uuid.UUID, url: str) -> CoverImage:

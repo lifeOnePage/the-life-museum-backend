@@ -23,7 +23,7 @@ async def get_record_list(
     current_user: User = Depends(get_current_user),
 ):
     service = RecordService(db)
-    records = await service.get_records_by_user(current_user.id)
+    records_with_role = await service.get_records_by_user(current_user.id)
 
     data = [
         RecordListItem(
@@ -34,6 +34,8 @@ async def get_record_list(
             bgColor=r.bg_color,
             color=r.color,
             keyColor=r.key_color,
+            theme=r.theme,
+            role=role,
             lifestory=LifestorySummary(
                 mood=r.lifestory.mood,
                 content=r.lifestory.content,
@@ -51,6 +53,6 @@ async def get_record_list(
             createdAt=r.created_at,
             updatedAt=r.updated_at,
         )
-        for r in records
+        for (r, role) in records_with_role
     ]
     return success_response(data=data)

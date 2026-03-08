@@ -1,6 +1,7 @@
 from app.models.user import User, OAuthAccount, PhoneVerification, OAuthProvider
 from app.models.email_verification import EmailVerification
 from app.models.record import Record
+from app.models.user_record_association import UserRecordAssociation
 from app.models.cover_image import CoverImage
 from app.models.timeline import Timeline, Event
 from app.models.lifestory import Lifestory, Qa
@@ -14,6 +15,7 @@ __all__ = [
     "EmailVerification",
     # Record 관련
     "Record",
+    "UserRecordAssociation",
     "CoverImage",
     # Timeline 관련
     "Timeline",

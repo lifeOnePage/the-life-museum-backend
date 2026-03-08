@@ -22,6 +22,7 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.record import Record
+    from app.models.user_record_association import UserRecordAssociation
 
 
 class OAuthProvider(str, enum.Enum):
@@ -75,19 +76,18 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
-    # 관계: User(1) - Record(N) (소유자)
-    records: Mapped[List["Record"]] = relationship(
-        "Record",
-        back_populates="user",
-        cascade="all, delete-orphan",
-        foreign_keys="Record.user_id",
-    )
-
     # 관계: User(1) - Record(N) (생성자)
     created_records: Mapped[List["Record"]] = relationship(
         "Record",
         back_populates="creator",
         foreign_keys="Record.creator_id",
+    )
+
+    # 관계: User(N) - UserRecordAssociation(N)
+    record_associations: Mapped[List["UserRecordAssociation"]] = relationship(
+        "UserRecordAssociation",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
 

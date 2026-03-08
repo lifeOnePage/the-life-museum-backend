@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
@@ -16,6 +17,7 @@ from app.schemas.record import (
     RecordUpdate,
     RecordResponse,
     RecordDetailResponse,
+    RecordListItem,
     CoverImageInfo,
     LifestorySummary,
     TimelineSummary,
@@ -30,12 +32,13 @@ from app.schemas.record import (
     CoverImageResponse,
     CoverGenerateResponse,
     CoverUrlRequest,
+    ShareRecordRequest,
 )
 from app.services.record import RecordService
 from app.services.openai import OpenAIService
 from app.services.storage import R2StorageService
 from app.services.replicate import ReplicateService
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import ForbiddenException, NotFoundException
 
 router = APIRouter()
 
@@ -84,6 +87,11 @@ async def update_record(
     if not record:
         raise NotFoundException("Record not found")
 
+    # 소유자만 수정 가능
+    assoc = await service.get_user_association(current_user.id, record_id)
+    if not assoc or assoc.role != "owner":
+        raise ForbiddenException("Only the owner can edit this record")
+
     # body에서 None이 아닌 필드만 추출하여 업데이트
     field_mapping = {
         "title": "title",
@@ -128,11 +136,8 @@ async def delete_record(
     current_user: User = Depends(get_current_user),
 ):
     service = RecordService(db)
-    record = await service.get_record_by_id(record_id)
-    if not record:
-        raise NotFoundException("Record not found")
-
-    await service.delete_record(record)
+    # 권한 확인 및 삭제는 서비스에서 처리 (소유자가 아니면 ForbiddenException)
+    await service.delete_record(current_user.id, record_id)
     return success_response(data=None, message="Record deleted")
 
 
@@ -396,3 +401,60 @@ async def save_cover_url(
     cover = await service.save_cover_image(record_id, body.url)
     data = CoverImageResponse(url=cover.url)
     return success_response(data=data)
+
+
+@router.post("/share", response_model=ApiResponse)
+async def add_shared_record(
+    body: ShareRecordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """walk/{id} URL에서 record_id를 추출하여 공유 앨범으로 추가."""
+    match = re.search(r"walk/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", body.url)
+    if not match:
+        raise HTTPException(status_code=400, detail="유효한 walk URL이 아닙니다")
+
+    record_id = uuid.UUID(match.group(1))
+    service = RecordService(db)
+    record = await service.share_record(current_user.id, record_id)
+
+    data = RecordListItem(
+        id=record.id,
+        title=record.title,
+        subtitle=record.subtitle,
+        coverImage=CoverImageInfo(url=record.cover_image.url) if record.cover_image else None,
+        bgColor=record.bg_color,
+        color=record.color,
+        keyColor=record.key_color,
+        theme=record.theme,
+        role="shared",
+        lifestory=LifestorySummary(
+            mood=record.lifestory.mood,
+            content=record.lifestory.content,
+        ) if record.lifestory else None,
+        timeline=TimelineSummary(
+            events=[
+                EventItem(
+                    title=e.title,
+                    timestamp=e.timestamp,
+                    description=e.description,
+                )
+                for e in (record.timeline.events if record.timeline and record.timeline.events else [])
+            ]
+        ) if record.timeline else None,
+        createdAt=record.created_at,
+        updatedAt=record.updated_at,
+    )
+    return success_response(data=data, code=201, message="Shared record added")
+
+
+@router.delete("/{record_id}/share", response_model=ApiResponse)
+async def remove_shared_record(
+    record_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """공유 앨범 제거 (role='shared' 연관만 삭제)."""
+    service = RecordService(db)
+    await service.unshare_record(current_user.id, record_id)
+    return success_response(data={"ok": True}, message="Shared record removed")
