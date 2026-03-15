@@ -255,6 +255,11 @@ class RecordService:
 
     async def delete_record(self, user_id: uuid.UUID, record_id: uuid.UUID) -> None:
         """소유자(owner)만 레코드 삭제 가능."""
+        record = await self.get_record_by_id(record_id)
+        if not record:
+            raise NotFoundException("Record not found")
+
+        # association 테이블 우선 확인, 없으면 creator_id로 폴백 (테이블 도입 이전 레코드 호환)
         assoc = await self.db.scalar(
             select(UserRecordAssociation).where(
                 UserRecordAssociation.user_id == user_id,
@@ -262,12 +267,9 @@ class RecordService:
                 UserRecordAssociation.role == "owner",
             )
         )
-        if not assoc:
+        is_owner = (assoc is not None) or (record.creator_id == user_id)
+        if not is_owner:
             raise ForbiddenException("Only the owner can delete this record")
-
-        record = await self.get_record_by_id(record_id)
-        if not record:
-            raise NotFoundException("Record not found")
 
         await self.db.delete(record)
         await self.db.commit()

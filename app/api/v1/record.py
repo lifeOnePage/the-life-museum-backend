@@ -88,8 +88,12 @@ async def update_record(
         raise NotFoundException("Record not found")
 
     # 소유자만 수정 가능
+    # association 테이블 우선 확인, 없으면 creator_id로 폴백 (테이블 도입 이전 레코드 호환)
     assoc = await service.get_user_association(current_user.id, record_id)
-    if not assoc or assoc.role != "owner":
+    is_owner = (assoc is not None and assoc.role == "owner") or (
+        record.creator_id == current_user.id
+    )
+    if not is_owner:
         raise ForbiddenException("Only the owner can edit this record")
 
     # body에서 None이 아닌 필드만 추출하여 업데이트
