@@ -1,3 +1,6 @@
+import time
+import logging
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +30,7 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.core.exceptions import BadRequestException, UnauthorizedException
 from app.api.deps import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -94,13 +98,21 @@ async def refresh_token(data: RefreshTokenRequest, db: AsyncSession = Depends(ge
 async def send_phone_verification(
     data: PhoneVerificationRequest, db: AsyncSession = Depends(get_db)
 ):
+    t_total = time.time()
     sms_service = get_sms_service()
     auth_service = AuthService(db)
 
     code = sms_service.generate_verification_code()
-    await auth_service.create_phone_verification(data.phone, code)
-    await sms_service.send_verification_code(data.phone, code)
 
+    t0 = time.time()
+    await auth_service.create_phone_verification(data.phone, code)
+    logger.info("[phone/send-code] DB create_verification: %.2fs", time.time() - t0)
+
+    t0 = time.time()
+    await sms_service.send_verification_code(data.phone, code)
+    logger.info("[phone/send-code] SMS send: %.2fs", time.time() - t0)
+
+    logger.info("[phone/send-code] TOTAL: %.2fs", time.time() - t_total)
     return success_response(message="Verification code sent")
 
 
@@ -108,9 +120,18 @@ async def send_phone_verification(
 async def verify_phone(
     data: PhoneVerificationConfirm, db: AsyncSession = Depends(get_db)
 ):
+    t_total = time.time()
     auth_service = AuthService(db)
+
+    t0 = time.time()
     await auth_service.verify_phone_code(data.phone, data.code)
+    logger.info("[phone/verify] DB verify_code: %.2fs", time.time() - t0)
+
+    t0 = time.time()
     user, is_new_user = await auth_service.get_or_create_user_by_phone(data.phone)
+    logger.info("[phone/verify] DB get_or_create_user: %.2fs", time.time() - t0)
+
+    logger.info("[phone/verify] TOTAL: %.2fs", time.time() - t_total)
     return success_response(_build_auth_response(user, is_new_user))
 
 
@@ -119,13 +140,21 @@ async def verify_phone(
 async def send_email_verification(
     data: EmailVerificationRequest, db: AsyncSession = Depends(get_db)
 ):
+    t_total = time.time()
     email_service = get_email_service()
     auth_service = AuthService(db)
 
     code = email_service.generate_verification_code()
-    await auth_service.create_email_verification(data.email, code)
-    await email_service.send_verification_code(data.email, code)
 
+    t0 = time.time()
+    await auth_service.create_email_verification(data.email, code)
+    logger.info("[send-code] DB create_verification: %.2fs", time.time() - t0)
+
+    t0 = time.time()
+    await email_service.send_verification_code(data.email, code)
+    logger.info("[send-code] Gmail send: %.2fs", time.time() - t0)
+
+    logger.info("[send-code] TOTAL: %.2fs", time.time() - t_total)
     return success_response(message="Verification code sent")
 
 
@@ -133,10 +162,23 @@ async def send_email_verification(
 async def verify_email(
     data: EmailVerificationConfirm, db: AsyncSession = Depends(get_db)
 ):
+    t_total = time.time()
     auth_service = AuthService(db)
+
+    t0 = time.time()
     await auth_service.verify_email_code(data.email, data.code)
+    logger.info("[verify] DB verify_code: %.2fs", time.time() - t0)
+
+    t0 = time.time()
     user, is_new_user = await auth_service.get_or_create_user_by_email(data.email)
-    return success_response(_build_auth_response(user, is_new_user))
+    logger.info("[verify] DB get_or_create_user: %.2fs", time.time() - t0)
+
+    t0 = time.time()
+    resp = _build_auth_response(user, is_new_user)
+    logger.info("[verify] build_response (JWT): %.2fs", time.time() - t0)
+
+    logger.info("[verify] TOTAL: %.2fs", time.time() - t_total)
+    return success_response(resp)
 
 
 @router.post("/complete-signup")
