@@ -44,6 +44,37 @@ class RecordService:
 
         assoc = UserRecordAssociation(user_id=user_id, record_id=record.id, role="owner")
         self.db.add(assoc)
+
+        # 기본 라이프스토리
+        lifestory = Lifestory(
+            record_id=record.id,
+            mood=None,
+            content=(
+                "어린 시절, 골목길을 누비며 뛰어놀던 기억이 아직도 생생합니다. "
+                "여름이면 할머니 댁 마당에서 수박을 먹고, 겨울이면 온 동네가 하얗게 물든 눈밭 위를 걸었죠. "
+                "그 시절의 따뜻한 햇살과 웃음소리가 지금의 저를 만들어 주었습니다."
+            ),
+        )
+        self.db.add(lifestory)
+        await self.db.flush()
+
+        # 기본 타임라인
+        timeline = Timeline(record_id=record.id)
+        self.db.add(timeline)
+        await self.db.flush()
+
+        default_events = [
+            {"title": "서울에서 태어남", "timestamp": "1995", "description": None},
+            {"title": "초등학교 입학 - 첫 번째 친구를 만남", "timestamp": "2001", "description": None},
+        ]
+        for evt_data in default_events:
+            self.db.add(Event(
+                timeline_id=timeline.id,
+                title=evt_data["title"],
+                timestamp=evt_data["timestamp"],
+                description=evt_data["description"],
+            ))
+
         await self.db.commit()
         await self.db.refresh(record)
         return record

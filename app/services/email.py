@@ -2,6 +2,7 @@ import base64
 import random
 import string
 import logging
+import time
 from abc import ABC, abstractmethod
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -46,8 +47,14 @@ class GmailAPIProvider(EmailProvider):
         self.client_id = client_id
         self.client_secret = client_secret
         self.sender = f"The Life Museum <{user}>"
+        self._cached_token: str | None = None
+        self._token_expires_at: float = 0
 
     async def _get_access_token(self, client: httpx.AsyncClient) -> str:
+        if self._cached_token and time.time() < self._token_expires_at - 60:
+            return self._cached_token
+
+        t0 = time.time()
         resp = await client.post(
             _GOOGLE_TOKEN_URL,
             data={
@@ -59,7 +66,11 @@ class GmailAPIProvider(EmailProvider):
             timeout=10.0,
         )
         resp.raise_for_status()
-        return resp.json()["access_token"]
+        data = resp.json()
+        self._cached_token = data["access_token"]
+        self._token_expires_at = time.time() + data.get("expires_in", 3600)
+        logger.info("Gmail OAuth token refreshed in %.1fs", time.time() - t0)
+        return self._cached_token
 
     async def send_email(self, to: str, subject: str, html: str) -> bool:
         message = MIMEMultipart("alternative")
@@ -72,6 +83,7 @@ class GmailAPIProvider(EmailProvider):
 
         try:
             async with httpx.AsyncClient() as client:
+                t0 = time.time()
                 access_token = await self._get_access_token(client)
                 resp = await client.post(
                     _GMAIL_SEND_URL,
@@ -80,7 +92,7 @@ class GmailAPIProvider(EmailProvider):
                     timeout=10.0,
                 )
                 resp.raise_for_status()
-                logger.info("Gmail API sent to %s", to)
+                logger.info("Gmail API sent to %s in %.1fs", to, time.time() - t0)
                 return True
         except Exception as e:
             logger.error("Gmail API error: %s", e)
@@ -100,14 +112,21 @@ class EmailService:
         return await self.provider.send_email(email, subject, html)
 
 
+_email_service: EmailService | None = None
+
+
 def get_email_service() -> EmailService:
+    global _email_service
+    if _email_service is not None:
+        return _email_service
+
     if (
         settings.GMAIL_USER
         and settings.GMAIL_REFRESH_TOKEN
         and settings.GOOGLE_CLIENT_ID
         and settings.GOOGLE_CLIENT_SECRET
     ):
-        return EmailService(
+        _email_service = EmailService(
             GmailAPIProvider(
                 user=settings.GMAIL_USER,
                 refresh_token=settings.GMAIL_REFRESH_TOKEN,
@@ -115,4 +134,6 @@ def get_email_service() -> EmailService:
                 client_secret=settings.GOOGLE_CLIENT_SECRET,
             )
         )
-    return EmailService(MockEmailProvider())
+    else:
+        _email_service = EmailService(MockEmailProvider())
+    return _email_service
