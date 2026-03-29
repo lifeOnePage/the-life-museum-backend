@@ -96,6 +96,7 @@ class RecordDetailResponse(BaseModel):
     bgColor: str | None = None
     keyColor: str | None = None
     theme: str | None = None
+    coverGenCount: int = 0
     mediaList: list[MediaItem] = []
     coverImage: CoverImageInfo | None = None
     lifestory: LifestorySummary | None = None
@@ -145,6 +146,11 @@ class CoverImageResponse(BaseModel):
 
 class CoverGenerateResponse(BaseModel):
     videos: list[str]  # R2 URLs (up to 3; partial failure allowed)
+
+
+class CoverGenerateImageResponse(BaseModel):
+    images: list[str]  # R2 URLs
+    remainingGenerations: int
 
 
 class CoverUrlRequest(BaseModel):

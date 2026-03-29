@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Replicate
     REPLICATE_API_TOKEN: str = ""
 
+    # Stability AI
+    STABILITY_API_KEY: str = ""
+
     # Cloudflare R2
     R2_ACCOUNT_ID: str = ""
     R2_ACCESS_KEY_ID: str = ""

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import re
 import uuid
@@ -30,14 +29,14 @@ from app.schemas.record import (
     SaveTimelineRequest,
     TimelineResponse,
     CoverImageResponse,
-    CoverGenerateResponse,
+    CoverGenerateImageResponse,
     CoverUrlRequest,
     ShareRecordRequest,
 )
 from app.services.record import RecordService
 from app.services.openai import OpenAIService
 from app.services.storage import R2StorageService
-from app.services.replicate import ReplicateService
+from app.services.stability import StabilityService
 from app.core.exceptions import ForbiddenException, NotFoundException
 
 router = APIRouter()
@@ -193,6 +192,7 @@ async def get_record(
         bgColor=record.bg_color,
         keyColor=record.key_color,
         theme=record.theme,
+        coverGenCount=record.cover_gen_count,
         mediaList=media_list,
         coverImage=cover_image,
         lifestory=lifestory,
@@ -336,7 +336,7 @@ async def save_cover_img_temp(
 
 
 @router.post("/{record_id}/cover/generate", response_model=ApiResponse)
-async def generate_cover_videos(
+async def generate_cover_image(
     record_id: uuid.UUID,
     prompt: str = Form(...),
     image_strength: float = Form(0.5),
@@ -344,49 +344,51 @@ async def generate_cover_videos(
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """Generate 3 cover videos in parallel using Replicate, upload to R2, return URLs."""
+    """Generate a cover image using Stability AI, upload to R2, return URL."""
     service = RecordService(db)
     record = await service.get_record_by_id(record_id)
     if not record:
         raise NotFoundException("Record not found")
 
-    # Upload reference image to R2 if provided
-    reference_image_url: str | None = None
+    # Check generation limit
+    if record.cover_gen_count >= 3:
+        raise HTTPException(
+            status_code=400,
+            detail="생성 횟수가 초과되었습니다 (최대 3회)",
+        )
+
+    # Read reference image bytes if provided
+    reference_image_bytes: bytes | None = None
     if reference_image and reference_image.filename:
         img_content = await reference_image.read()
         if img_content:
-            ext = reference_image.filename.rsplit(".", 1)[-1] if "." in reference_image.filename else "jpg"
-            content_type = reference_image.content_type or "image/jpeg"
-            storage = R2StorageService()
-            reference_image_url = await storage.upload_file(img_content, content_type, ext)
+            reference_image_bytes = img_content
 
-    replicate = ReplicateService()
+    stability = StabilityService()
     storage = R2StorageService()
 
-    async def _generate_and_upload() -> str:
-        video_bytes = await replicate.generate_video(prompt, reference_image_url, image_strength)
-        url = await storage.upload_file(video_bytes, "video/mp4", "mp4")
-        return url
+    try:
+        image_bytes = await stability.generate_image(
+            prompt=prompt,
+            reference_image_bytes=reference_image_bytes,
+            image_strength=image_strength,
+        )
+    except Exception as e:
+        logger.error("Cover image generation failed: %s: %s", type(e).__name__, e)
+        raise HTTPException(status_code=500, detail="이미지 생성에 실패했습니다")
 
-    # Replicate의 동시 예측 생성 한도로 인해 1개씩 순차 생성
-    # 프론트엔드에서 여러 번 요청하여 최대 3개를 누적하는 방식으로 사용
-    results = await asyncio.gather(
-        _generate_and_upload(),
-        return_exceptions=True,
+    url = await storage.upload_file(image_bytes, "image/png", "png")
+
+    # Increment generation count
+    record.cover_gen_count += 1
+    await db.commit()
+    await db.refresh(record)
+
+    data = CoverGenerateImageResponse(
+        images=[url],
+        remainingGenerations=3 - record.cover_gen_count,
     )
-
-    urls = []
-    for i, r in enumerate(results):
-        if isinstance(r, Exception):
-            logger.error("Cover video generation #%d failed: %s: %s", i, type(r).__name__, r)
-        else:
-            urls.append(r)
-
-    if not urls:
-        raise HTTPException(status_code=500, detail="영상 생성에 실패했습니다")
-
-    data = CoverGenerateResponse(videos=urls)
-    return success_response(data=data, code=201, message="Cover videos generated")
+    return success_response(data=data, code=201, message="Cover image generated")
 
 
 @router.put("/{record_id}/cover/url", response_model=ApiResponse)
