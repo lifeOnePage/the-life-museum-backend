@@ -1,11 +1,53 @@
 import base64
+import io
 import logging
 
 import httpx
+from PIL import Image
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+SDXL_ALLOWED_DIMS = [
+    (1024, 1024), (1152, 896), (1216, 832), (1344, 768), (1536, 640),
+    (640, 1536), (768, 1344), (832, 1216), (896, 1152),
+]
+
+
+def _resize_for_sdxl(image_bytes: bytes) -> bytes:
+    """Resize & crop image to the nearest allowed SDXL dimension.
+
+    Crops the longer side (center crop) to match the target aspect ratio,
+    then resizes to the exact allowed dimension.
+    """
+    img = Image.open(io.BytesIO(image_bytes))
+    w, h = img.size
+    aspect = w / h
+
+    # Find the allowed dimension with the closest aspect ratio
+    target_w, target_h = min(
+        SDXL_ALLOWED_DIMS, key=lambda d: abs(d[0] / d[1] - aspect)
+    )
+    target_aspect = target_w / target_h
+
+    # Center-crop to match target aspect ratio
+    if aspect > target_aspect:
+        # Too wide — crop sides
+        new_w = int(h * target_aspect)
+        left = (w - new_w) // 2
+        img = img.crop((left, 0, left + new_w, h))
+    elif aspect < target_aspect:
+        # Too tall — crop top/bottom
+        new_h = int(w / target_aspect)
+        top = (h - new_h) // 2
+        img = img.crop((0, top, w, top + new_h))
+
+    img = img.resize((target_w, target_h), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 class StabilityService:
@@ -43,8 +85,9 @@ class StabilityService:
                 stability_strength = 1.0 - image_strength
                 url = f"{self.API_BASE}/{self.ENGINE}/image-to-image"
 
+                resized = _resize_for_sdxl(reference_image_bytes)
                 files = {
-                    "init_image": ("reference.png", reference_image_bytes, "image/png"),
+                    "init_image": ("reference.png", resized, "image/png"),
                 }
                 data = {
                     "text_prompts[0][text]": prompt,
