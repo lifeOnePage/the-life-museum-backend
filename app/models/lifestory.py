@@ -52,7 +52,7 @@ class Lifestory(Base):
         nullable=False,
     )
 
-    mood: Mapped[str] = mapped_column(String(100), nullable=False)
+    mood: Mapped[str | None] = mapped_column(String(100), nullable=True)
     
     content: Mapped[str] = mapped_column(String(350), nullable=False)
 
