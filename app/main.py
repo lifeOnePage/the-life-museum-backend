@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,6 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.api.v1 import api_router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:     %(name)s - %(message)s",
+)
 
 
 @asynccontextmanager

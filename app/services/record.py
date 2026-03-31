@@ -48,7 +48,7 @@ class RecordService:
         # 기본 라이프스토리
         lifestory = Lifestory(
             record_id=record.id,
-            mood=None,
+            mood="",
             content=(
                 "어린 시절, 골목길을 누비며 뛰어놀던 기억이 아직도 생생합니다. "
                 "여름이면 할머니 댁 마당에서 수박을 먹고, 겨울이면 온 동네가 하얗게 물든 눈밭 위를 걸었죠. "
@@ -64,8 +64,8 @@ class RecordService:
         await self.db.flush()
 
         default_events = [
-            {"title": "서울에서 태어남", "timestamp": "1995", "description": None},
-            {"title": "초등학교 입학 - 첫 번째 친구를 만남", "timestamp": "2001", "description": None},
+            {"title": "서울에서 태어남", "timestamp": "1995", "description": ""},
+            {"title": "초등학교 입학 - 첫 번째 친구를 만남", "timestamp": "2001", "description": ""},
         ]
         for evt_data in default_events:
             self.db.add(Event(
