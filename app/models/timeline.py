@@ -92,7 +92,7 @@ class Event(Base):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     timestamp: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # 관계: Event(N) - Timeline(1)
     timeline: Mapped["Timeline"] = relationship("Timeline", back_populates="events")

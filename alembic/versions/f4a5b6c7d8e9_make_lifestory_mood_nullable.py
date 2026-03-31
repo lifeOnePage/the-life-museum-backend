@@ -1,4 +1,4 @@
-"""make lifestory mood nullable
+"""make lifestory mood and event description nullable
 
 Revision ID: f4a5b6c7d8e9
 Revises: e3f4a5b6c7d8
@@ -24,6 +24,12 @@ def upgrade() -> None:
         existing_type=sa.String(length=100),
         nullable=True,
     )
+    op.alter_column(
+        'events',
+        'description',
+        existing_type=sa.Text(),
+        nullable=True,
+    )
 
 
 def downgrade() -> None:
@@ -32,5 +38,12 @@ def downgrade() -> None:
         'lifestories',
         'mood',
         existing_type=sa.String(length=100),
+        nullable=False,
+    )
+    op.execute("UPDATE events SET description = '' WHERE description IS NULL")
+    op.alter_column(
+        'events',
+        'description',
+        existing_type=sa.Text(),
         nullable=False,
     )
