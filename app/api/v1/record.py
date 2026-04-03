@@ -334,9 +334,6 @@ async def save_cover_img_temp(
     return success_response(data=data, code=201, message="Cover image uploaded")
 
 
-
-Copy
-
 COVER_STYLE_PROMPTS: dict[str, dict] = {
     "minimal": {
         "prompt": (
