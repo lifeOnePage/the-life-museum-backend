@@ -1,3 +1,5 @@
+import base64
+
 from openai import AsyncOpenAI
 
 from app.config import settings
@@ -36,6 +38,22 @@ class OpenAIService:
         )
 
         return response.choices[0].message.content.strip()
+
+    async def generate_cover_image(
+        self,
+        prompt: str,
+        reference_image_bytes: bytes,
+    ) -> bytes:
+        """gpt-image-1 images.edit()로 참고 이미지 기반 커버 생성."""
+        result = await self.client.images.edit(
+            model="gpt-image-1",
+            image=reference_image_bytes,
+            prompt=prompt,
+            n=1,
+            size="1024x1024",
+            response_format="b64_json",
+        )
+        return base64.b64decode(result.data[0].b64_json)
 
     async def generate_story(
         self,

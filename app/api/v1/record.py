@@ -36,7 +36,6 @@ from app.schemas.record import (
 from app.services.record import RecordService
 from app.services.openai import OpenAIService
 from app.services.storage import R2StorageService
-from app.services.stability import StabilityService
 from app.core.exceptions import ForbiddenException, NotFoundException
 
 router = APIRouter()
@@ -357,15 +356,12 @@ COVER_STYLE_PROMPTS: dict[str, dict] = {
             "ECM Records, Factory Records, 4AD sleeve design. Not the style — the discipline.\n\n"
             "No text, no borders, no decorative marks."
         ),
-        "image_strength": 0.55,
     },
     "abstract": {
         "prompt": "Square vinyl album sleeve. Abstract art style. (placeholder — coming soon)",
-        "image_strength": 0.45,
     },
     "animation": {
         "prompt": "Square vinyl album sleeve. Animation style. (placeholder — coming soon)",
-        "image_strength": 0.50,
     },
 }
 
@@ -378,7 +374,7 @@ async def generate_cover_image(
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """Generate a cover image using Stability AI, upload to R2, return URL."""
+    """Generate a cover image using OpenAI gpt-image-1, upload to R2, return URL."""
     style_config = COVER_STYLE_PROMPTS.get(style)
     if not style_config:
         raise HTTPException(
@@ -404,14 +400,13 @@ async def generate_cover_image(
         raise HTTPException(status_code=400, detail="참고 이미지가 비어있습니다")
     reference_image_bytes = img_content
 
-    stability = StabilityService()
+    openai_service = OpenAIService()
     storage = R2StorageService()
 
     try:
-        image_bytes = await stability.generate_image(
+        image_bytes = await openai_service.generate_cover_image(
             prompt=style_config["prompt"],
             reference_image_bytes=reference_image_bytes,
-            image_strength=style_config["image_strength"],
         )
     except Exception as e:
         logger.error("Cover image generation failed: %s: %s", type(e).__name__, e)
