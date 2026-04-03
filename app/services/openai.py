@@ -1,4 +1,5 @@
 import base64
+import io
 
 from openai import AsyncOpenAI
 
@@ -45,13 +46,15 @@ class OpenAIService:
         reference_image_bytes: bytes,
     ) -> bytes:
         """gpt-image-1 images.edit()로 참고 이미지 기반 커버 생성."""
+        image_file = io.BytesIO(reference_image_bytes)
+        image_file.name = "reference.png"
+
         result = await self.client.images.edit(
             model="gpt-image-1",
-            image=reference_image_bytes,
+            image=image_file,
             prompt=prompt,
             n=1,
             size="1024x1024",
-            response_format="b64_json",
         )
         return base64.b64decode(result.data[0].b64_json)
 
