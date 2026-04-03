@@ -335,16 +335,57 @@ async def save_cover_img_temp(
     return success_response(data=data, code=201, message="Cover image uploaded")
 
 
+COVER_STYLE_PROMPTS: dict[str, dict] = {
+    "minimal": {
+        "prompt": (
+            "Square vinyl album sleeve, premium art direction. "
+            "Inherit only the emotional register, compositional weight, and tonal contrast "
+            "from the reference — transform it into an original visual concept.\n\n"
+            "Visual language: reduction to essence. One primary element, one field, one relationship. "
+            "Nothing decorative. The image must work as a 30×30cm physical print and as a 300px digital thumbnail simultaneously.\n\n"
+            "Color: near-achromatic. Maximum two tonal values plus black. "
+            "Warm or cool bias chosen by reference mood. "
+            "No artificial color grading, no Instagram tones, no duotone effects.\n\n"
+            "Surface: matte, slightly textured — as if printed on uncoated stock. "
+            "Subtle silver halide grain. Depth achieved through tonal relationship, not blur or lens effects.\n\n"
+            "Composition: classical proportional logic — thirds, golden section, or deliberate symmetry break. "
+            "Subject occupies no more than 40% of the frame. "
+            "The space around the subject carries as much meaning as the subject itself.\n\n"
+            "Concept: an image that raises a question rather than answers one. "
+            "Surreal adjacency, visual metaphor, isolated form against void, geometric transformation, or quiet narrative tension.\n\n"
+            "Reference to: Wolfgang Tillmans, Saul Bass, Josef Müller-Brockmann, Gerhard Richter's gray paintings, "
+            "ECM Records, Factory Records, 4AD sleeve design. Not the style — the discipline.\n\n"
+            "No text, no borders, no decorative marks."
+        ),
+        "image_strength": 0.55,
+    },
+    "abstract": {
+        "prompt": "Square vinyl album sleeve. Abstract art style. (placeholder — coming soon)",
+        "image_strength": 0.45,
+    },
+    "animation": {
+        "prompt": "Square vinyl album sleeve. Animation style. (placeholder — coming soon)",
+        "image_strength": 0.50,
+    },
+}
+
+
 @router.post("/{record_id}/cover/generate", response_model=ApiResponse)
 async def generate_cover_image(
     record_id: uuid.UUID,
-    prompt: str = Form(...),
-    image_strength: float = Form(0.5),
-    reference_image: UploadFile | None = File(None),
+    style: str = Form(...),
+    reference_image: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Generate a cover image using Stability AI, upload to R2, return URL."""
+    style_config = COVER_STYLE_PROMPTS.get(style)
+    if not style_config:
+        raise HTTPException(
+            status_code=400,
+            detail=f"지원하지 않는 스타일입니다: {style}",
+        )
+
     service = RecordService(db)
     record = await service.get_record_by_id(record_id)
     if not record:
@@ -357,21 +398,20 @@ async def generate_cover_image(
             detail="생성 횟수가 초과되었습니다 (최대 3회)",
         )
 
-    # Read reference image bytes if provided
-    reference_image_bytes: bytes | None = None
-    if reference_image and reference_image.filename:
-        img_content = await reference_image.read()
-        if img_content:
-            reference_image_bytes = img_content
+    # Read reference image bytes (required)
+    img_content = await reference_image.read()
+    if not img_content:
+        raise HTTPException(status_code=400, detail="참고 이미지가 비어있습니다")
+    reference_image_bytes = img_content
 
     stability = StabilityService()
     storage = R2StorageService()
 
     try:
         image_bytes = await stability.generate_image(
-            prompt=prompt,
+            prompt=style_config["prompt"],
             reference_image_bytes=reference_image_bytes,
-            image_strength=image_strength,
+            image_strength=style_config["image_strength"],
         )
     except Exception as e:
         logger.error("Cover image generation failed: %s: %s", type(e).__name__, e)
