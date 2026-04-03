@@ -334,65 +334,99 @@ async def save_cover_img_temp(
     return success_response(data=data, code=201, message="Cover image uploaded")
 
 
+
+Copy
+
 COVER_STYLE_PROMPTS: dict[str, dict] = {
     "minimal": {
         "prompt": (
             "Square vinyl album sleeve. Premium hand-drawn illustration. Minimal modern.\n\n"
+ 
             "STEP 1 — READ THE REFERENCE:\n"
             "Identify exactly what the reference image contains: the subject, their pose and position within the frame, "
             "the number of figures, the spatial setting, and the lighting condition "
             "(bright interior, outdoor daylight, night scene, dramatic backlight). "
             "The lighting condition determines how the background is treated in Step 2. "
             "This content must appear in the output without substitution or addition.\n\n"
+ 
             "STEP 2 — RENDERING HIERARCHY (most critical rule):\n"
-            "The illustration must use four distinct levels of rendering density. "
-            "Every zone must be treated differently — applying the same mark density across the entire image is a failure.\n\n"
+            "The illustration uses four zones, each requiring a different combination of four techniques: "
+            "solid ink fill, hatching, clean linework, and ink wash. "
+            "These four techniques must be mixed dynamically — no single technique should dominate the entire image. "
+            "Applying uniform hatching everywhere is a failure.\n\n"
+ 
+            "THE FOUR TECHNIQUES — use each where it is most appropriate:\n\n"
+            "· SOLID INK FILL (spot black): Used for the darkest masses — hair, deep cast shadows, black clothing. "
+            "Fill these areas as flat, opaque, solid black with no visible lines inside the mass. "
+            "A few flowing directional strokes may ride the edge of the mass to suggest movement or texture, "
+            "but the interior must be pure filled black, never hatching.\n\n"
+            "· HATCHING / CROSS-HATCHING: Used exclusively for mid-tone gray areas — "
+            "skin shadow planes, clothing folds in ambient light, structural mid-tones. "
+            "Hatching represents gray, not black. Spacing between lines controls the value. "
+            "Never use hatching where solid fill should be.\n\n"
+            "· CLEAN LINEWORK: Used for contour edges, silhouette boundaries, facial features, "
+            "and structural definition. Line weight varies — thick at major silhouette edges, "
+            "medium at form transitions, fine at detail. This is the skeleton of the image.\n\n"
+            "· INK WASH: Used for soft atmospheric tones — diffuse shadow on skin, "
+            "hazy background atmosphere, environmental depth in wide scenes. "
+            "Wash layers are transparent and directional, not covering the paper tooth. "
+            "Use wash where hatching lines would feel too mechanical.\n\n"
+ 
             "ZONE 1 — FULL DETAIL (approx. 5% of image area):\n"
-            "Eyes, eyebrows, nose bridge, lips. Dense, precise hatching or linework. "
-            "This is the only zone that receives maximum rendering. Every other zone must be less rendered than this.\n\n"
+            "Eyes, eyebrows, nose, lips. Combine clean linework for structure with fine hatching for shadow planes. "
+            "This is the only zone with maximum rendering density. All other zones must be less rendered.\n\n"
+ 
             "ZONE 2 — BOLD MASSES (approx. 15% of image area):\n"
-            "Hair, deep shadow areas, dark clothing masses. Render with thick, fast, confident strokes or solid ink masses "
-            "— not fine hatching. Hair reads as bold dark shapes, not individual strands.\n\n"
+            "Hair, deep shadows, dark clothing. Use solid ink fill as the primary technique. "
+            "Do not use hatching here — fill solidly. Edge strokes for movement are acceptable.\n\n"
+ 
             "ZONE 3 — MINIMAL SUGGESTION (approx. 20% of image area):\n"
-            "Shoulders, hands, clothing folds, foreground objects. Use 3 to 7 lines maximum to suggest form. "
-            "Leave the rest as white paper. Do not fill these areas with hatching.\n\n"
-            "ZONE 4 — BACKGROUND (remaining area, treatment depends on scene):\n"
+            "Shoulders, hands, clothing, foreground objects. Use clean linework for structure, "
+            "with optional sparse hatching or a single wash layer for form. "
+            "3 to 7 marks maximum per area — leave the rest as white paper.\n\n"
+ 
+            "ZONE 4 — BACKGROUND (remaining area, scene-dependent):\n"
             "The background is never rendered at the same density as Zone 1. "
-            "Choose the appropriate treatment based on the lighting and scene type identified in Step 1:\n\n"
-            "· Bright interior or portrait-dominant scene: eliminate most of the background. "
-            "Retain only 1 to 3 structural lines that anchor the figure in space "
-            "(a doorframe edge, a table line, a window contour). Everything else is white paper.\n\n"
-            "· Scene where environment is structurally important (a crowd, a street, an architectural setting): "
-            "retain the key structural forms of the background using clean contour lines with hatching at half the density "
-            "of Zone 1 or less. Secondary background figures or objects should be rendered as simplified silhouettes "
-            "— no facial detail, no texture.\n\n"
-            "· Night scene or dramatically lit environment: background inking is permitted and may be extensive. "
-            "Render dark sky, shadow masses, or atmospheric depth using bold hatching or ink wash. "
-            "However, the primary subject must read as a clear silhouette against the background "
-            "— the contrast between figure and ground must remain strong. "
-            "The background serves the subject; the subject is never lost in the background.\n\n"
-            "In all cases: background rendering is always subordinate to the foreground subject. "
-            "If the background and the subject have the same rendering density, the hierarchy has failed.\n\n"
+            "Choose treatment based on lighting condition from Step 1:\n\n"
+            "· Bright interior or portrait scene: mostly white paper. "
+            "1 to 3 structural contour lines only to anchor the figure in space.\n\n"
+            "· Environmentally important scene (street, crowd, architecture): "
+            "clean contour lines for key structures, light wash for atmosphere, "
+            "hatching at half the density of Zone 1. Secondary figures as simplified silhouettes.\n\n"
+            "· Night scene or dramatic lighting: solid ink fill and dense wash permitted extensively. "
+            "The subject must read as a clear silhouette against the dark background — "
+            "figure-ground contrast must remain strong. Background serves the subject, never competes.\n\n"
+            "In all cases: background rendering density is always subordinate to the foreground subject.\n\n"
+ 
             "STEP 3 — LINE WEIGHT:\n"
-            "Use three distinct line weights deliberately:\n"
-            "· Thick anchor lines: outer silhouette of the subject, major structural edges.\n"
-            "· Medium structure lines: facial features, major form transitions.\n"
-            "· Fine detail lines: only inside Zone 1. Nowhere else.\n"
-            "A uniform line weight throughout the image is a failure.\n\n"
+            "Use three distinct weights deliberately:\n"
+            "· Thick anchor lines: outer silhouette, boundaries between solid masses and white areas.\n"
+            "· Medium lines: facial features, major form transitions.\n"
+            "· Fine lines: detail inside Zone 1 and edge strokes on Zone 2 masses only.\n"
+            "Uniform line weight throughout is a failure.\n\n"
+ 
             "STEP 4 — THE DISCIPLINE OF OMISSION:\n"
             "White paper is an active compositional element, not empty space. "
             "The figure should feel like it is emerging from the paper. "
-            "Even in scenes with significant background, the total unmarked area must exceed the total marked area.\n\n"
+            "Total unmarked area must exceed total marked area in most scenes.\n\n"
+ 
             "STEP 5 — COMPOSE FOR THE SLEEVE:\n"
             "Maintain the compositional intent of the reference. "
             "Leave minimum 25% of the square as open space for typography.\n\n"
+ 
             "STEP 6 — QUALITY:\n"
-            "· Achromatic only: ink black, graphite gray, paper white\n"
-            "· Paper surface: light-tooth cartridge — smooth enough that individual marks remain clearly visible\n"
+            "· Achromatic only: pure ink black, mid-gray wash and hatching, paper white — "
+            "three values, cleanly separated and never confused\n"
+            "· Paper surface: light-tooth cartridge or smooth hot-press — "
+            "individual marks and wash edges must remain visible\n"
             "· No color. No text. No watermark. No border. No vignette.\n\n"
-            "Aesthetic reference: the selective rendering and bold line confidence of Kim Jung Gi, "
-            "the deliberate omission in contemporary Korean pencil illustration (감성 스케치), "
-            "the ink economy of David Downton.\n\n"
+ 
+            "Aesthetic reference: manga spot-black inking technique for dark masses, "
+            "the selective linework economy of Kim Jung Gi, "
+            "ink wash atmosphere of contemporary Korean pencil illustration (감성 스케치), "
+            "editorial restraint of David Downton — "
+            "all four techniques used together dynamically, never uniformly.\n\n"
+ 
             "--ar 1:1 --style raw --stylize 800 --chaos 8"
         ),
     },
@@ -403,6 +437,7 @@ COVER_STYLE_PROMPTS: dict[str, dict] = {
         "prompt": "Square vinyl album sleeve. Animation style. (placeholder — coming soon)",
     },
 }
+ 
 
 
 @router.post("/{record_id}/cover/generate", response_model=ApiResponse)
