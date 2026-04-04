@@ -35,6 +35,7 @@ from app.schemas.record import (
 )
 from app.services.record import RecordService
 from app.services.openai import OpenAIService
+from app.services.gemini import GeminiService
 from app.services.storage import R2StorageService
 from app.core.exceptions import ForbiddenException, NotFoundException
 
@@ -503,7 +504,7 @@ async def generate_cover_image(
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """Generate a cover image using OpenAI gpt-image-1, upload to R2, return URL."""
+    """Generate a cover image using Gemini (via OpenAIService), upload to R2, return URL."""
     style_config = COVER_STYLE_PROMPTS.get(style)
     if not style_config:
         raise HTTPException(
@@ -529,11 +530,11 @@ async def generate_cover_image(
         raise HTTPException(status_code=400, detail="참고 이미지가 비어있습니다")
     reference_image_bytes = img_content
 
-    openai_service = OpenAIService()
+    gemini = GeminiService()
     storage = R2StorageService()
 
     try:
-        image_bytes = await openai_service.generate_cover_image(
+        image_bytes = await gemini.generate_cover_image(
             prompt=style_config["prompt"],
             reference_image_bytes=reference_image_bytes,
         )

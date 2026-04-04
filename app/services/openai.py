@@ -10,6 +10,24 @@ class OpenAIService:
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
+    async def generate_cover_image(
+        self,
+        prompt: str,
+        reference_image_bytes: bytes,
+    ) -> bytes:
+        """gpt-image-1 images.edit()로 참고 이미지 기반 커버 생성."""
+        image_file = io.BytesIO(reference_image_bytes)
+        image_file.name = "reference.png"
+
+        result = await self.client.images.edit(
+            model="gpt-image-1",
+            image=image_file,
+            prompt=prompt,
+            n=1,
+            size="1024x1024",
+        )
+        return base64.b64decode(result.data[0].b64_json)
+
     async def generate_lifestory(self, qa_list: list[dict], mood: str) -> str:
         qa_text = "\n".join(
             f"Q: {qa['question']}\nA: {qa['answer']}" for qa in qa_list
@@ -39,24 +57,6 @@ class OpenAIService:
         )
 
         return response.choices[0].message.content.strip()
-
-    async def generate_cover_image(
-        self,
-        prompt: str,
-        reference_image_bytes: bytes,
-    ) -> bytes:
-        """gpt-image-1 images.edit()로 참고 이미지 기반 커버 생성."""
-        image_file = io.BytesIO(reference_image_bytes)
-        image_file.name = "reference.png"
-
-        result = await self.client.images.edit(
-            model="gpt-image-1",
-            image=image_file,
-            prompt=prompt,
-            n=1,
-            size="1024x1024",
-        )
-        return base64.b64decode(result.data[0].b64_json)
 
     async def generate_story(
         self,

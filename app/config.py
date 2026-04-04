@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str = ""
 
+    # Google Gemini
+    GOOGLE_GEMINI_API_KEY: str = ""
+
     # Replicate
     REPLICATE_API_TOKEN: str = ""
 
