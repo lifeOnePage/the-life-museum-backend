@@ -534,7 +534,7 @@ async def generate_cover_image(
     storage = R2StorageService()
 
     try:
-        image_bytes = await gemini.generate_cover_image(
+        image_bytes, mime_type, ext = await gemini.generate_cover_image(
             prompt=style_config["prompt"],
             reference_image_bytes=reference_image_bytes,
         )
@@ -542,7 +542,7 @@ async def generate_cover_image(
         logger.error("Cover image generation failed: %s: %s", type(e).__name__, e)
         raise HTTPException(status_code=500, detail="이미지 생성에 실패했습니다")
 
-    url = await storage.upload_file(image_bytes, "image/png", "png")
+    url = await storage.upload_file(image_bytes, mime_type, ext)
 
     # Increment generation count
     record.cover_gen_count += 1
