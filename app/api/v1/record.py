@@ -498,7 +498,19 @@ Aesthetic reference: the mark-making confidence of Kim Jung Gi, gestural abstrac
     },
 
     "abstract": {
-        "prompt": "Square vinyl album sleeve. Abstract art style. (placeholder — coming soon)",
+        "prompt": '''
+        "A high-saturation Pop Art screen-print illustration, blending flattened depth, complex patterned surfaces, and intense non-naturalistic colors. The main subject from the input image is transformed into a highly stylized Pop Art figure or object.
+
+Key characteristics to include:
+
+Color and Lighting: Saturated, vibrant colors applied in flat color fields with strong contrasts, replacing photorealistic lighting and gradients. Utilize an unnatural, high-contrast Pop Art color palette for figures (e.g., colorful skin and hair) and environment.
+
+Perspective and Pattern: Flattened depth with clear, powerful central composition. Surface areas, especially on subjects like clothing or key objects, are covered in intricate and dense decorative patterns. Blend organic floral motifs and complex designs with more geometric Pop Art-style shapes and visual repetition.
+
+Environment: Stylized geometric modern architecture and clean-lined environments, perhaps combining clean modern pools and structures, presented with flat color planes. Repeated background elements or patterns derived from Pop Art.
+
+Texture: Incorporate visible screen-print imperfections, deliberately misaligned color registration, and varied halftone dot patterns throughout the image for an authentic printed quality. The overall feel is that of a powerful, graphical art piece."
+        ''',
     },
 }
 
