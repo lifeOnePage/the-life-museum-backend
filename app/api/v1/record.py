@@ -499,17 +499,81 @@ Aesthetic reference: the mark-making confidence of Kim Jung Gi, gestural abstrac
 
     "abstract": {
         "prompt": '''
-        "A high-saturation Pop Art screen-print illustration, blending flattened depth, complex patterned surfaces, and intense non-naturalistic colors. The main subject from the input image is transformed into a highly stylized Pop Art figure or object.
+        Square vinyl album sleeve. Graphic art and abstract illustration style.
 
-Key characteristics to include:
+STEP 1 — READ THE REFERENCE:
+Identify the subject, scene, spatial composition, dominant mood, and — critically — the luminosity structure of the reference image. Map the following before making any graphic decisions:
+· Which areas are brightest in the original? (typically: face, skin, light surfaces)
+· Which areas are mid-tone?
+· Which areas are darkest? (typically: hair, shadows, deep background)
+This luminosity map is a fixed constraint. Even when all colors are replaced with a deliberate graphic palette, the relative light-dark relationships must be preserved. A bright face in the original must remain the brightest region in the output. A dark background must remain darker than the subject.
 
-Color and Lighting: Saturated, vibrant colors applied in flat color fields with strong contrasts, replacing photorealistic lighting and gradients. Utilize an unnatural, high-contrast Pop Art color palette for figures (e.g., colorful skin and hair) and environment.
+STEP 2 — ESTABLISH VISUAL HIERARCHY (most critical rule):
+The output must have a clear three-zone visual hierarchy based on complexity, pattern density, and outline weight. These zones map directly to spatial depth in the image:
 
-Perspective and Pattern: Flattened depth with clear, powerful central composition. Surface areas, especially on subjects like clothing or key objects, are covered in intricate and dense decorative patterns. Blend organic floral motifs and complex designs with more geometric Pop Art-style shapes and visual repetition.
+ZONE A — PRIMARY SUBJECT (closest to camera, highest priority):
+· Color: simplified flat planes — 2 to 4 colors maximum for this zone
+· Texture/pattern: none or minimal. The subject is the LEAST patterned area in the image.
+· Outline: boldest and thickest lines in the image define the subject's outer silhouette against the background
+· Value: must be the lightest or highest-contrast area in the image — matching the original's luminosity structure
+· The face, if present, receives the clearest, most readable color plane rendering
 
-Environment: Stylized geometric modern architecture and clean-lined environments, perhaps combining clean modern pools and structures, presented with flat color planes. Repeated background elements or patterns derived from Pop Art.
+ZONE B — MID-GROUND (supporting environment, secondary elements):
+· Color: flat planes, may use 1 to 2 simple accent patterns (dots, stripes) sparingly
+· Outline: medium weight — thinner than Zone A's outer silhouette
+· Value: mid-range — darker than Zone A, lighter than Zone C
 
-Texture: Incorporate visible screen-print imperfections, deliberately misaligned color registration, and varied halftone dot patterns throughout the image for an authentic printed quality. The overall feel is that of a powerful, graphical art piece."
+ZONE C — BACKGROUND (farthest from camera, lowest priority):
+· Color: flat planes with more graphic complexity — patterns, textures, and decorative fills are permitted here
+· Outline: thinnest or absent — background elements do not compete with the subject
+· Value: must be the darkest or most complex area — pushing the subject forward visually
+· Background patterns and graphic elements recede, they do not compete with the subject
+
+IF ANY ZONE HAS EQUAL COMPLEXITY TO ANOTHER, THE HIERARCHY HAS FAILED.
+
+STEP 3 — GRAPHIC TRANSLATION PRINCIPLES:
+
+COLOR AS DECISION, NOT OBSERVATION:
+Do not use the colors from the reference photograph. Build a deliberate palette of 4 to 7 colors. The palette must have a wide value range — from a near-white or very light color to a near-black or very dark color. This range is essential for the hierarchy in Step 2 to function. Apply colors in flat, unblended planes — no photographic gradients.
+
+FORM AS SHAPE, NOT RENDERING:
+All subjects are reduced to simplified graphic shapes — no photorealistic skin texture, no smooth shadow gradients. Faces become 3 to 5 flat color shapes. Figures become silhouettes with internal color division. The medium simplifies, it does not trace.
+
+MEDIUM / TEXTURE — choose one and apply with restraint:
+· Screen print / silkscreen: flat color fills, registration offset between color layers, halftone dots used ONLY in Zone B and Zone C — never covering the primary subject's face or main color planes
+· Risograph: two or three ink colors with slight offset; ink is grainy and translucent; used to suggest depth, not fill everything
+· Flat graphic / vector: pure flat color, no texture anywhere, clean sharp edges
+· Collage / mixed media: layered color shapes; patterns appear as fragments in Zone C, not as wallpaper across the whole image
+· Expressionist paint: gestural color planes following emotional intent; value structure from Step 1 must still be respected
+· Neon / vivid: dark background (Zone C is dark and rich), subject glows forward against it; no equal brightness everywhere
+
+THE MEDIUM IS NOT AN EXCUSE TO FILL EVERY AREA WITH EQUAL PATTERN DENSITY. Patterns serve hierarchy, not decoration.
+
+STEP 4 — OUTLINE LOGIC:
+Outline weight must vary dramatically across the image:
+· Primary subject outer boundary: thickest — this is the most important line in the image
+· Internal divisions within the subject: medium weight
+· Background elements: thin or no outline — they do not compete
+Uniform outline weight across the entire image is a failure.
+
+STEP 5 — SUBJECT RENDERING SPECIFICS:
+· Person or figure: the silhouette is a bold graphic shape. The face is rendered with the fewest, largest color planes — not filled with pattern. Eyes, nose, and mouth may be simplified to minimal marks, but the face plane must be the clearest readable region in the image.
+· Environment or scene: translate key structural elements into flat geometric color planes. Background patterns and graphic elements are used in Zone C only.
+· Object: bold isolated graphic form. The object itself is clean; the background may be patterned.
+
+STEP 6 — COMPOSE FOR THE SLEEVE:
+Maintain the compositional structure of the reference. Leave a zone of open color field (minimum 25% of the frame) for album typography — this zone is a flat color plane, part of the design.
+
+STEP 7 — QUALITY:
+· The image must have a readable, clear visual hierarchy: subject pops from background
+· Color is flat and deliberate — not naturalistic
+· No photorealism, no smooth CGI rendering
+· No uniform pattern density across all zones
+· No text, no watermark, no border
+
+Aesthetic lineage: Andy Warhol's silkscreen flatness, Roy Lichtenstein's halftone graphic language, contemporary flat editorial illustration — all of which maintain strong subject/background separation and value hierarchy.
+
+--ar 1:1 --style raw --stylize 750 --chaos 10
         ''',
     },
 }
