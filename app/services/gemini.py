@@ -15,7 +15,7 @@ class GeminiService:
     ) -> bytes:
         """Gemini generate_content()로 참고 이미지 기반 커버 생성."""
         response = await self.client.aio.models.generate_content(
-            model="gemini-2.0-flash-exp-image",
+            model="gemini-3.1-flash-image-preview",
             contents=[
                 prompt,
                 types.Part.from_bytes(
