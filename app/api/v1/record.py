@@ -337,93 +337,79 @@ async def save_cover_img_temp(
 COVER_STYLE_PROMPTS: dict[str, dict] = {
     "minimal": {
         "prompt": (
-            "Square vinyl album sleeve. Hand-drawn illustration in the manner of a skilled artist making deliberate choices "
-            "— not a traced photograph, not a filtered image.\n\n"
+            '''
+            Square vinyl album sleeve. Hand-drawn illustration in the manner of a skilled artist making deliberate choices — not a traced photograph, not a filtered image.
 
-            "STEP 1 — READ, THEN INTERPRET:\n"
-            "Identify the subject, scene, mood, and key visual relationships in the reference image. "
-            "Then make the following artistic decisions before drawing anything:\n"
-            "· What is the single most important visual element? This receives the most rendering.\n"
-            "· What supports the mood but does not need detail? This gets simplified.\n"
-            "· What is incidental noise that adds nothing? This gets omitted entirely.\n"
-            "The reference image is a starting point, not a blueprint. "
-            "The drawing must show what an artist chose to draw, not what a camera captured.\n\n"
+STEP 1 — READ, THEN INTERPRET:
+Identify the subject, scene, mood, and key visual relationships in the reference image. Then make the following artistic decisions before drawing anything:
+· What is the single most important visual element? This receives the most rendering.
+· What supports the mood but does not need detail? This gets simplified.
+· What is incidental noise that adds nothing? This gets omitted entirely.
+The reference image is a starting point, not a blueprint. The drawing must show what an artist chose to draw, not what a camera captured.
 
-            "STEP 2 — ABSTRACTION RULES (mandatory):\n"
-            "These rules govern how specific elements are handled:\n\n"
+STEP 1-B — FACE GEOMETRY LOCK (applies when reference contains a face):
+Before any mark is made, measure and memorize the following spatial relationships from the reference image. These are fixed constraints. They must not change in the drawing output — not for stylistic reasons, not for aesthetic improvement, not for idealization.
 
-            "TEXT AND WRITING: Any text, writing, or lettering visible in the reference "
-            "— on signs, plaques, papers, walls, screens — must NEVER be reproduced as readable characters. "
-            "Translate all text into gestural marks: a cluster of horizontal lines, a scribbled texture, "
-            "a loose hatching pattern that suggests the presence of writing without reproducing it. "
-            "Readable text in the illustration is a failure.\n\n"
+FIXED MEASUREMENTS — preserve exactly:
+· Eye position: the horizontal axis on which both eyes sit, and the vertical position of that axis relative to the total face height
+· Inter-eye distance: the gap between the inner corners of the two eyes — preserve this ratio relative to face width
+· Eye shape and tilt: the angle of each eye's opening — whether the outer corner rises, falls, or is level
+· Nose length: the distance from the bridge to the tip, as a proportion of face height
+· Nose width: the width of the nostrils relative to the eye width
+· Philtrum length: the distance between the base of the nose and the top of the upper lip
+· Lip width and shape: the horizontal span of the mouth, the curvature of the cupid's bow, the fullness ratio between upper and lower lip
+· Jaw line angle and chin shape
+· Face width-to-height ratio
 
-            "PATTERNS AND REPETITIVE DETAIL: Dense repeating patterns "
-            "(fabric weave, tiled surfaces, crowds of similar objects) are rendered as tonal masses "
-            "or simplified texture strokes — not as individually drawn repeated elements. "
-            "A sweater becomes 5–7 curved lines suggesting knit. "
-            "A wall of hanging objects becomes a suggested mass with gestural surface marks, "
-            "not individually rendered items.\n\n"
+WHAT THIS MEANS IN PRACTICE:
+· If the reference person has eyes set close together, the drawing must have eyes set close together
+· If the reference person has a wide mouth, the drawing must have a wide mouth
+· The drawing may simplify or stylize — but it must not correct, idealize, or normalize any measurement
+· A viewer who knows the person should recognize the same face structure in the drawing
 
-            "CROWDS AND BACKGROUND FIGURES: Reduce to silhouette shapes or shadow masses. "
-            "No facial detail, no clothing detail.\n\n"
+DO NOT adjust the face toward more "balanced", "attractive", or "idealized" proportions. Do not apply any correction a beauty retoucher would apply.
 
-            "ARCHITECTURE AND STRUCTURES: Key structural lines only — enough to establish space. "
-            "Decorative details are omitted.\n\n"
+STEP 2 — ABSTRACTION RULES (mandatory):
+TEXT AND WRITING: Any text or lettering visible in the reference must NEVER be reproduced as readable characters. Translate all text into gestural marks — clusters of horizontal lines, scribbled texture, loose hatching that suggests writing without reproducing it. Readable text in the illustration is a failure.
 
-            "STEP 3 — RENDERING HIERARCHY:\n"
-            "The illustration uses four techniques applied to different zones. Never uniform.\n\n"
+PATTERNS AND REPETITIVE DETAIL: Dense repeating patterns are rendered as tonal masses or simplified texture strokes — not individually drawn repeated elements. A sweater becomes 5–7 curved lines suggesting knit. A wall of hanging objects becomes a suggested mass with gestural surface marks, not individually rendered items.
 
-            "ZONE 1 — FULL RENDERING (the single focal point — typically the face or primary gesture):\n"
-            "The most resolved area. Precise linework, controlled hatching or ink wash for form. "
-            "This is where the viewer's eye lands first. Maximum 10% of image area.\n\n"
+CROWDS AND BACKGROUND FIGURES: Reduce to silhouette shapes or shadow masses. No facial detail.
 
-            "ZONE 2 — SOLID BLACK MASSES (hair, deep shadows, dominant dark elements):\n"
-            "Flat opaque filled black — no internal hatching. "
-            "Edge strokes may suggest movement. Interior is pure solid black.\n\n"
+ARCHITECTURE AND STRUCTURES: Key structural lines only — enough to establish space. Decorative details are omitted.
 
-            "ZONE 3 — GESTURAL SUGGESTION (clothing, hands, secondary objects):\n"
-            "3 to 10 confident marks establish form. No fill, no texture rendering. "
-            "The rest is white paper. This zone is where artistic economy is most visible.\n\n"
+STEP 3 — RENDERING HIERARCHY:
 
-            "ZONE 4 — ATMOSPHERIC OR STRUCTURAL (background, environment):\n"
-            "Based on scene type:\n"
-            "· Portrait or intimate scene: near-white. 1–3 structural lines anchor the figure in space. "
-            "Everything else is paper.\n"
-            "· Scene with important environment: key structural outlines at half the density of Zone 1. "
-            "Pattern detail becomes tonal suggestion.\n"
-            "· Night or dramatic scene: solid masses and ink wash for atmosphere. "
-            "Subject silhouette must remain clear.\n\n"
+ZONE 1 — FACE (highest priority — geometry lock applies):
+Render with maximum precision and densest linework. Face structure from Step 1-B is absolute. Within that structure, apply chosen drawing style: precise linework for features, hatching or ink wash for shadow planes. Maximum rendering density is here and only here.
 
-            "STEP 4 — THE ARTIST'S MARK:\n"
-            "Every line in the illustration must feel like a deliberate decision. Lines are:\n"
-            "· Fast and confident — drawn without hesitation\n"
-            "· Varied in weight — thick at silhouette boundaries, medium at form edges, "
-            "fine at Zone 1 detail only\n"
-            "· Incomplete where appropriate — a line that suggests a form is more powerful than one that outlines it\n\n"
-            "Lines that look like they are carefully tracing a photograph are a failure. "
-            "Lines that look like they were drawn by someone who understood the subject are correct.\n\n"
+ZONE 2 — SOLID BLACK MASSES (hair, deep shadows, dark elements):
+Flat opaque solid black — no internal hatching. Edge strokes may suggest movement. Interior is pure filled black.
 
-            "STEP 5 — COMPOSE FOR THE SLEEVE:\n"
-            "The drawing does not have to use the same crop as the reference. Reframe if needed to:\n"
-            "· Give the primary subject more compositional weight\n"
-            "· Create open space (minimum 25%) for album typography\n"
-            "· Establish a clear visual hierarchy between subject and environment\n"
-            "The composition should feel like an album cover — not a documentary sketch.\n\n"
+ZONE 3 — GESTURAL SUGGESTION (clothing, hands, secondary objects):
+3 to 10 confident marks establish form. No fill, no texture rendering. Rest is white paper.
 
-            "STEP 6 — QUALITY:\n"
-            "· Achromatic: ink black, graphite gray, paper white only\n"
-            "· Paper surface: smooth cartridge or hot-press — marks remain visible and crisp\n"
-            "· No photorealism. No photo-filter look. No uniform line density.\n"
-            "· No readable text. No watermark. No border. No vignette.\n\n"
+ZONE 4 — BACKGROUND (scene-dependent):
+· Portrait or intimate scene: near-white. 1–3 structural lines anchor the figure.
+· Important environment: key structural outlines at half Zone 1 density. Pattern becomes tonal suggestion.
+· Night or dramatic: solid masses and ink wash. Subject silhouette remains clear.
 
-            "Aesthetic reference: the selective economy of ink illustration where what is NOT drawn "
-            "is as important as what IS drawn. The mark-making confidence of Kim Jung Gi, "
-            "the gestural abstraction of ink wash portraiture, "
-            "the tonal hierarchy of editorial fashion illustration "
-            "— applied with the deliberate restraint of a skilled artist, not the completeness of a scanner.\n\n"
+STEP 4 — THE ARTIST'S MARK:
+Every line is a deliberate decision. Lines are fast and confident, varied in weight (thick at silhouette, medium at form edges, fine at Zone 1 only), and incomplete where appropriate. Lines that look like careful photo tracing are a failure.
 
-            "--ar 1:1 --style raw --stylize 850 --chaos 12"
+STEP 5 — COMPOSE FOR THE SLEEVE:
+Reframe if needed to give the subject compositional weight, create open space (minimum 25%) for typography, and establish clear visual hierarchy. The composition should feel like an album cover, not a documentary sketch.
+
+STEP 6 — QUALITY:
+· Achromatic: ink black, graphite gray, paper white only
+· Paper: smooth cartridge or hot-press — marks remain visible and crisp
+· No photorealism. No photo-filter look. No uniform line density.
+· No readable text. No watermark. No border. No vignette.
+
+Aesthetic reference: the mark-making confidence of Kim Jung Gi, gestural abstraction of ink wash portraiture, tonal hierarchy of editorial fashion illustration — applied with deliberate restraint, not the completeness of a scanner.
+
+--ar 1:1 --style raw --stylize 850 --chaos 12
+            '''
         ),
     },
 
