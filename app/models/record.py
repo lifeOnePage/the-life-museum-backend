@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -63,6 +64,20 @@ class Record(Base):
 
     # 테마
     theme: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    # 커버 제목 설정
+    cover_title_visible: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
+    cover_title_position: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'center-center'")
+    )
+    cover_title_font: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )
+    cover_title_color: Mapped[Optional[str]] = mapped_column(
+        String(7), nullable=True
+    )
 
     # 커버 생성 횟수 (최대 3회)
     cover_gen_count: Mapped[int] = mapped_column(

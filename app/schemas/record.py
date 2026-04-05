@@ -46,6 +46,10 @@ class RecordUpdate(BaseModel):
     bgColor: HexColor = None
     keyColor: HexColor = None
     theme: str | None = None
+    coverTitleVisible: bool | None = None
+    coverTitlePosition: str | None = None
+    coverTitleFont: str | None = None
+    coverTitleColor: HexColor = None
 
 
 class RecordResponse(BaseModel):
@@ -59,6 +63,10 @@ class RecordResponse(BaseModel):
     bgColor: str | None = None
     keyColor: str | None = None
     theme: str | None = None
+    coverTitleVisible: bool = True
+    coverTitlePosition: str = "center-center"
+    coverTitleFont: str | None = None
+    coverTitleColor: str | None = None
     createdAt: datetime
     updatedAt: datetime
 
@@ -96,6 +104,10 @@ class RecordDetailResponse(BaseModel):
     bgColor: str | None = None
     keyColor: str | None = None
     theme: str | None = None
+    coverTitleVisible: bool = True
+    coverTitlePosition: str = "center-center"
+    coverTitleFont: str | None = None
+    coverTitleColor: str | None = None
     coverGenCount: int = 0
     mediaList: list[MediaItem] = []
     coverImage: CoverImageInfo | None = None
@@ -167,6 +179,10 @@ class RecordListItem(BaseModel):
     color: str | None = None
     keyColor: str | None = None
     theme: str | None = None
+    coverTitleVisible: bool = True
+    coverTitlePosition: str = "center-center"
+    coverTitleFont: str | None = None
+    coverTitleColor: str | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
     role: Literal["owner", "shared"] = "owner"

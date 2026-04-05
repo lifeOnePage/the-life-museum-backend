@@ -68,6 +68,10 @@ async def create_record(
         bgColor=record.bg_color,
         keyColor=record.key_color,
         theme=record.theme,
+        coverTitleVisible=record.cover_title_visible,
+        coverTitlePosition=record.cover_title_position,
+        coverTitleFont=record.cover_title_font,
+        coverTitleColor=record.cover_title_color,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -106,6 +110,10 @@ async def update_record(
         "bgColor": "bg_color",
         "keyColor": "key_color",
         "theme": "theme",
+        "coverTitleVisible": "cover_title_visible",
+        "coverTitlePosition": "cover_title_position",
+        "coverTitleFont": "cover_title_font",
+        "coverTitleColor": "cover_title_color",
     }
     update_data = {}
     for schema_field, model_field in field_mapping.items():
@@ -126,6 +134,10 @@ async def update_record(
         bgColor=record.bg_color,
         keyColor=record.key_color,
         theme=record.theme,
+        coverTitleVisible=record.cover_title_visible,
+        coverTitlePosition=record.cover_title_position,
+        coverTitleFont=record.cover_title_font,
+        coverTitleColor=record.cover_title_color,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -192,6 +204,10 @@ async def get_record(
         bgColor=record.bg_color,
         keyColor=record.key_color,
         theme=record.theme,
+        coverTitleVisible=record.cover_title_visible,
+        coverTitlePosition=record.cover_title_position,
+        coverTitleFont=record.cover_title_font,
+        coverTitleColor=record.cover_title_color,
         coverGenCount=record.cover_gen_count,
         mediaList=media_list,
         coverImage=cover_image,
@@ -680,6 +696,10 @@ async def add_shared_record(
         color=record.color,
         keyColor=record.key_color,
         theme=record.theme,
+        coverTitleVisible=record.cover_title_visible,
+        coverTitlePosition=record.cover_title_position,
+        coverTitleFont=record.cover_title_font,
+        coverTitleColor=record.cover_title_color,
         role="shared",
         lifestory=LifestorySummary(
             mood=record.lifestory.mood,

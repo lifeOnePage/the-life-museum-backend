@@ -35,6 +35,10 @@ async def get_record_list(
             color=r.color,
             keyColor=r.key_color,
             theme=r.theme,
+            coverTitleVisible=r.cover_title_visible,
+            coverTitlePosition=r.cover_title_position,
+            coverTitleFont=r.cover_title_font,
+            coverTitleColor=r.cover_title_color,
             role=role,
             lifestory=LifestorySummary(
                 mood=r.lifestory.mood,
