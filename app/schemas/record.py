@@ -50,6 +50,12 @@ class RecordUpdate(BaseModel):
     coverTitlePosition: str | None = None
     coverTitleFont: str | None = None
     coverTitleColor: HexColor = None
+    coverTitleBgColor: HexColor = None
+    isPublic: bool | None = None
+
+
+class PublicUpdateRequest(BaseModel):
+    isPublic: bool
 
 
 class RecordResponse(BaseModel):
@@ -67,6 +73,8 @@ class RecordResponse(BaseModel):
     coverTitlePosition: str = "center-center"
     coverTitleFont: str | None = None
     coverTitleColor: str | None = None
+    coverTitleBgColor: str | None = None
+    isPublic: bool = False
     createdAt: datetime
     updatedAt: datetime
 
@@ -108,6 +116,8 @@ class RecordDetailResponse(BaseModel):
     coverTitlePosition: str = "center-center"
     coverTitleFont: str | None = None
     coverTitleColor: str | None = None
+    coverTitleBgColor: str | None = None
+    isPublic: bool = False
     coverGenCount: int = 0
     mediaList: list[MediaItem] = []
     coverImage: CoverImageInfo | None = None
@@ -183,6 +193,8 @@ class RecordListItem(BaseModel):
     coverTitlePosition: str = "center-center"
     coverTitleFont: str | None = None
     coverTitleColor: str | None = None
+    coverTitleBgColor: str | None = None
+    isPublic: bool = False
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
     role: Literal["owner", "shared"] = "owner"

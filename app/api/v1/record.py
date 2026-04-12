@@ -32,6 +32,7 @@ from app.schemas.record import (
     CoverGenerateImageResponse,
     CoverUrlRequest,
     ShareRecordRequest,
+    PublicUpdateRequest,
 )
 from app.services.record import RecordService
 from app.services.openai import OpenAIService
@@ -72,6 +73,8 @@ async def create_record(
         coverTitlePosition=record.cover_title_position,
         coverTitleFont=record.cover_title_font,
         coverTitleColor=record.cover_title_color,
+        coverTitleBgColor=record.cover_title_bg_color,
+        isPublic=record.is_public,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -114,6 +117,8 @@ async def update_record(
         "coverTitlePosition": "cover_title_position",
         "coverTitleFont": "cover_title_font",
         "coverTitleColor": "cover_title_color",
+        "coverTitleBgColor": "cover_title_bg_color",
+        "isPublic": "is_public",
     }
     update_data = {}
     for schema_field, model_field in field_mapping.items():
@@ -138,6 +143,8 @@ async def update_record(
         coverTitlePosition=record.cover_title_position,
         coverTitleFont=record.cover_title_font,
         coverTitleColor=record.cover_title_color,
+        coverTitleBgColor=record.cover_title_bg_color,
+        isPublic=record.is_public,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -154,6 +161,29 @@ async def delete_record(
     # 권한 확인 및 삭제는 서비스에서 처리 (소유자가 아니면 ForbiddenException)
     await service.delete_record(current_user.id, record_id)
     return success_response(data=None, message="Record deleted")
+
+
+@router.patch("/{record_id}/public", response_model=ApiResponse)
+async def update_public(
+    record_id: uuid.UUID,
+    body: PublicUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    assoc = await service.get_user_association(current_user.id, record_id)
+    is_owner = (assoc is not None and assoc.role == "owner") or (
+        record.creator_id == current_user.id
+    )
+    if not is_owner:
+        raise ForbiddenException("Only the owner can change public status")
+
+    record = await service.update_record(record, {"is_public": body.isPublic})
+    return success_response(data={"ok": True, "isPublic": record.is_public})
 
 
 @router.get("/{record_id}", response_model=ApiResponse)
@@ -208,6 +238,8 @@ async def get_record(
         coverTitlePosition=record.cover_title_position,
         coverTitleFont=record.cover_title_font,
         coverTitleColor=record.cover_title_color,
+        coverTitleBgColor=record.cover_title_bg_color,
+        isPublic=record.is_public,
         coverGenCount=record.cover_gen_count,
         mediaList=media_list,
         coverImage=cover_image,
@@ -700,6 +732,8 @@ async def add_shared_record(
         coverTitlePosition=record.cover_title_position,
         coverTitleFont=record.cover_title_font,
         coverTitleColor=record.cover_title_color,
+        coverTitleBgColor=record.cover_title_bg_color,
+        isPublic=record.is_public,
         role="shared",
         lifestory=LifestorySummary(
             mood=record.lifestory.mood,

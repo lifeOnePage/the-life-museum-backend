@@ -78,6 +78,14 @@ class Record(Base):
     cover_title_color: Mapped[Optional[str]] = mapped_column(
         String(7), nullable=True
     )
+    cover_title_bg_color: Mapped[Optional[str]] = mapped_column(
+        String(7), nullable=True
+    )
+
+    # 공개 여부
+    is_public: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
 
     # 커버 생성 횟수 (최대 3회)
     cover_gen_count: Mapped[int] = mapped_column(
