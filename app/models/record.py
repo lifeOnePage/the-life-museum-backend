@@ -91,6 +91,11 @@ class Record(Base):
     cover_gen_count: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("0")
     )
+    
+    # 생애문 생성 횟수 (최대 3회)
+    story_gen_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
 
     # 외부 저장소 URL
     google_photo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

@@ -119,6 +119,7 @@ class RecordDetailResponse(BaseModel):
     coverTitleBgColor: str | None = None
     isPublic: bool = False
     coverGenCount: int = 0
+    storyGenCount: int = 0
     mediaList: list[MediaItem] = []
     coverImage: CoverImageInfo | None = None
     lifestory: LifestorySummary | None = None

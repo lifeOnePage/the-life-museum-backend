@@ -186,6 +186,40 @@ async def update_public(
     return success_response(data={"ok": True, "isPublic": record.is_public})
 
 
+@router.patch("/{record_id}/story-gen-count", response_model=ApiResponse)
+async def increment_story_gen_count(
+    record_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    assoc = await service.get_user_association(current_user.id, record_id)
+    is_owner = (assoc is not None and assoc.role == "owner") or (
+        record.creator_id == current_user.id
+    )
+    if not is_owner:
+        raise ForbiddenException("Only the owner can update this record")
+
+    if record.story_gen_count >= 3:
+        raise HTTPException(
+            status_code=400,
+            detail="생애문 생성 횟수가 초과되었습니다 (최대 3회)",
+        )
+
+    record.story_gen_count += 1
+    await db.commit()
+    await db.refresh(record)
+
+    return success_response(data={
+        "storyGenCount": record.story_gen_count,
+        "remainingGenerations": 3 - record.story_gen_count,
+    })
+
+
 @router.get("/{record_id}", response_model=ApiResponse)
 async def get_record(
     record_id: uuid.UUID,
@@ -241,6 +275,7 @@ async def get_record(
         coverTitleBgColor=record.cover_title_bg_color,
         isPublic=record.is_public,
         coverGenCount=record.cover_gen_count,
+        storyGenCount=record.story_gen_count,
         mediaList=media_list,
         coverImage=cover_image,
         lifestory=lifestory,
