@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User, PhoneVerification
@@ -68,11 +68,9 @@ class AuthService:
         return user
 
     async def create_phone_verification(self, phone: str, code: str) -> PhoneVerification:
-        existing = await self.db.execute(
-            select(PhoneVerification).where(PhoneVerification.phone == phone)
+        await self.db.execute(
+            delete(PhoneVerification).where(PhoneVerification.phone == phone)
         )
-        for v in existing.scalars().all():
-            await self.db.delete(v)
 
         verification = PhoneVerification(
             phone=phone,
@@ -81,7 +79,6 @@ class AuthService:
         )
         self.db.add(verification)
         await self.db.commit()
-        await self.db.refresh(verification)
         return verification
 
     async def verify_phone_code(self, phone: str, code: str) -> bool:
@@ -112,11 +109,9 @@ class AuthService:
         return True
 
     async def create_email_verification(self, email: str, code: str) -> EmailVerification:
-        existing = await self.db.execute(
-            select(EmailVerification).where(EmailVerification.email == email)
+        await self.db.execute(
+            delete(EmailVerification).where(EmailVerification.email == email)
         )
-        for v in existing.scalars().all():
-            await self.db.delete(v)
 
         verification = EmailVerification(
             email=email,
@@ -125,7 +120,6 @@ class AuthService:
         )
         self.db.add(verification)
         await self.db.commit()
-        await self.db.refresh(verification)
         return verification
 
     async def verify_email_code(self, email: str, code: str) -> bool:
