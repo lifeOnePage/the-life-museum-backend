@@ -75,6 +75,8 @@ async def create_record(
         coverTitleColor=record.cover_title_color,
         coverTitleBgColor=record.cover_title_bg_color,
         isPublic=record.is_public,
+        bgmId=record.bgm_id,
+        bgmUrl=record.bgm_url,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -119,6 +121,8 @@ async def update_record(
         "coverTitleColor": "cover_title_color",
         "coverTitleBgColor": "cover_title_bg_color",
         "isPublic": "is_public",
+        "bgmId": "bgm_id",
+        "bgmUrl": "bgm_url",
     }
     update_data = {}
     for schema_field, model_field in field_mapping.items():
@@ -145,6 +149,8 @@ async def update_record(
         coverTitleColor=record.cover_title_color,
         coverTitleBgColor=record.cover_title_bg_color,
         isPublic=record.is_public,
+        bgmId=record.bgm_id,
+        bgmUrl=record.bgm_url,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -274,6 +280,8 @@ async def get_record(
         coverTitleColor=record.cover_title_color,
         coverTitleBgColor=record.cover_title_bg_color,
         isPublic=record.is_public,
+        bgmId=record.bgm_id,
+        bgmUrl=record.bgm_url,
         coverGenCount=record.cover_gen_count,
         storyGenCount=record.story_gen_count,
         mediaList=media_list,
@@ -769,6 +777,8 @@ async def add_shared_record(
         coverTitleColor=record.cover_title_color,
         coverTitleBgColor=record.cover_title_bg_color,
         isPublic=record.is_public,
+        bgmId=record.bgm_id,
+        bgmUrl=record.bgm_url,
         role="shared",
         lifestory=LifestorySummary(
             mood=record.lifestory.mood,

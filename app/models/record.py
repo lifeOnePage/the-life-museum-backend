@@ -79,7 +79,13 @@ class Record(Base):
         String(7), nullable=True
     )
     cover_title_bg_color: Mapped[Optional[str]] = mapped_column(
-        String(7), nullable=True
+        String(9), nullable=True
+    )
+    bgm_id: Mapped[Optional[int]] = mapped_column(
+      Integer, nullable=True
+    )
+    bgm_url: Mapped[Optional[str]] = mapped_column(
+      Text, nullable=True
     )
 
     # 공개 여부
