@@ -13,8 +13,8 @@ from app.schemas.scraper import MediaItem
 def validate_hex_color(v: str | None) -> str | None:
     if v is None:
         return v
-    if not re.fullmatch(r"#[0-9a-fA-F]{6}", v):
-        raise ValueError("Invalid hex color. Must be # followed by 6 hex digits, e.g. #ff00aa")
+    if not re.fullmatch(r"#[0-9a-fA-F]{8}", v):
+        raise ValueError("Invalid hex color. Must be # followed by 8 hex digits, e.g. #ff00aa55")
     return v.lower()
 
 

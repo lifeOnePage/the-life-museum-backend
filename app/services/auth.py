@@ -1,7 +1,11 @@
+import logging
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.models.user import User, PhoneVerification
 from app.models.email_verification import EmailVerification
@@ -109,9 +113,11 @@ class AuthService:
         return True
 
     async def create_email_verification(self, email: str, code: str) -> EmailVerification:
+        t0 = time.time()
         await self.db.execute(
             delete(EmailVerification).where(EmailVerification.email == email)
         )
+        logger.info("[create_email_verification] DELETE old: %.2fs", time.time() - t0)
 
         verification = EmailVerification(
             email=email,
@@ -119,16 +125,22 @@ class AuthService:
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
         )
         self.db.add(verification)
+
+        t0 = time.time()
         await self.db.commit()
+        logger.info("[create_email_verification] COMMIT (flush+insert): %.2fs", time.time() - t0)
+
         return verification
 
     async def verify_email_code(self, email: str, code: str) -> bool:
+        t0 = time.time()
         result = await self.db.execute(
             select(EmailVerification).where(
                 EmailVerification.email == email,
                 EmailVerification.is_verified == False,
             )
         )
+        logger.info("[verify_email_code] SELECT: %.2fs", time.time() - t0)
         verification = result.scalar_one_or_none()
 
         if not verification:
@@ -146,7 +158,9 @@ class AuthService:
             raise BadRequestException("Invalid verification code")
 
         verification.is_verified = True
+        t0 = time.time()
         await self.db.commit()
+        logger.info("[verify_email_code] COMMIT: %.2fs", time.time() - t0)
         return True
 
     async def get_or_create_user_by_phone(self, phone: str) -> tuple[User, bool]:
@@ -167,7 +181,9 @@ class AuthService:
 
     async def get_or_create_user_by_email(self, email: str) -> tuple[User, bool]:
         """Returns (user, is_new_user)"""
+        t0 = time.time()
         user = await self.get_user_by_email(email)
+        logger.info("[get_or_create_user_by_email] SELECT user: %.2fs", time.time() - t0)
         if user:
             return user, False
 
@@ -177,7 +193,9 @@ class AuthService:
             is_verified=True,
         )
         self.db.add(user)
+        t0 = time.time()
         await self.db.commit()
+        logger.info("[get_or_create_user_by_email] COMMIT: %.2fs", time.time() - t0)
         await self.db.refresh(user)
         return user, True
 

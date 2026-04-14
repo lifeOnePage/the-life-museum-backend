@@ -57,10 +57,10 @@ class Record(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     subtitle: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    # 컬러 설정
-    color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
-    bg_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
-    key_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    # 컬러 설정 (#rrggbbaa — 알파 포함 최대 9자)
+    color: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
+    bg_color: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
+    key_color: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
 
     # 테마
     theme: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -76,7 +76,7 @@ class Record(Base):
         String(100), nullable=True
     )
     cover_title_color: Mapped[Optional[str]] = mapped_column(
-        String(7), nullable=True
+        String(9), nullable=True
     )
     cover_title_bg_color: Mapped[Optional[str]] = mapped_column(
         String(9), nullable=True
