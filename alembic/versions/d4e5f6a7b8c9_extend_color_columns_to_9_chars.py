@@ -17,7 +17,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 # 7자리 → 9자리로 확장할 컬럼 목록
-COLOR_COLUMNS = ['color', 'bg_color', 'key_color', 'cover_title_color']
+COLOR_COLUMNS = ['color', 'bg_color', 'key_color', 'cover_title_color', 'cover_title_bg_color']
 
 
 def upgrade() -> None:
