@@ -13,7 +13,7 @@ engine = create_async_engine(
     # 연결 대기 최대 10초 (초과 시 즉시 에러 → 오래 매달리지 않음)
     pool_timeout=10,
     # asyncpg 연결 시도 자체의 타임아웃 (CancelledError 방지)
-    connect_args={"timeout": 20},
+    connect_args={"timeout": 20, "statement_cache_size": 0},
     # Neon PgBouncer 유휴 연결 끊김 대응
     pool_pre_ping=True,
     pool_recycle=240,
