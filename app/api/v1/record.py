@@ -753,8 +753,9 @@ async def add_shared_record(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+  
     """walk/{id} URL에서 record_id를 추출하여 공유 앨범으로 추가."""
-    match = re.search(r"walk/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", body.url)
+    match = re.search(r"share/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", body.url)
     if not match:
         raise HTTPException(status_code=400, detail="유효한 walk URL이 아닙니다")
 
