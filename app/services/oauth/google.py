@@ -27,7 +27,7 @@ class GoogleOAuth:
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
-            "scope": "openid email profile https://www.googleapis.com/auth/photoslibrary.readonly",
+            "scope": "openid email profile",
             "access_type": "offline",
             "prompt": "consent",
         }

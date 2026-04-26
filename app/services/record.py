@@ -7,7 +7,6 @@ from sqlalchemy.orm import selectinload
 
 from app.models.record import Record
 from app.models.user_record_association import UserRecordAssociation
-from app.models.user import OAuthAccount, OAuthProvider
 from app.models.lifestory import Lifestory, Qa
 from app.models.timeline import Timeline, Event
 from app.models.cover_image import CoverImage
@@ -36,7 +35,7 @@ class RecordService:
         # Google Photos 메타데이터 자동 채움
         album_meta: AlbumMetadata | None = None
         if google_photo_url:
-            album_meta = await self._fetch_google_album_metadata(user_id, google_photo_url)
+            album_meta = await self._fetch_google_album_metadata(google_photo_url)
 
         if album_meta and (not title or not title.strip()):
             title = album_meta.title or title
@@ -95,28 +94,12 @@ class RecordService:
         return record
 
     async def _fetch_google_album_metadata(
-        self, user_id: uuid.UUID, google_photo_url: str
+        self, google_photo_url: str
     ) -> AlbumMetadata | None:
-        """사용자의 Google 토큰으로 앨범 메타데이터 조회. 실패 시 None."""
+        """공유 앨범 URL의 OG 메타태그에서 메타데이터 추출. 실패 시 None."""
         try:
-            result = await self.db.execute(
-                select(OAuthAccount).where(
-                    OAuthAccount.user_id == user_id,
-                    OAuthAccount.provider == OAuthProvider.GOOGLE,
-                )
-            )
-            oauth = result.scalar_one_or_none()
-            if not oauth or not oauth.access_token:
-                logger.info("No Google OAuth token for user %s, skipping metadata fetch", user_id)
-                return None
-
             api = GooglePhotosAPI()
-            meta = await api.get_album_metadata(
-                share_url=google_photo_url,
-                access_token=oauth.access_token,
-                refresh_token=oauth.refresh_token,
-            )
-            return meta
+            return await api.get_album_metadata(share_url=google_photo_url)
         except Exception as e:
             logger.warning("Failed to fetch Google album metadata: %s", e)
             return None

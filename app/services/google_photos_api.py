@@ -1,10 +1,9 @@
 import logging
+import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
-
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -16,80 +15,67 @@ class AlbumMetadata:
 
 
 class GooglePhotosAPI:
-    BASE_URL = "https://photoslibrary.googleapis.com/v1"
-    TOKEN_URL = "https://oauth2.googleapis.com/token"
+    """Google Photos 공유 앨범 URL에서 OG 메타태그로 메타데이터 추출."""
 
-    async def get_album_metadata(
-        self,
-        share_url: str,
-        access_token: str,
-        refresh_token: str | None,
-    ) -> AlbumMetadata | None:
-        """공유 앨범 URL로 앨범 메타데이터 조회."""
+    async def get_album_metadata(self, share_url: str) -> AlbumMetadata | None:
+        """공유 앨범 URL의 OG 메타태그에서 제목/커버 이미지 추출."""
         resolved_url = await self._resolve_share_url(share_url)
 
         try:
-            albums = await self._list_shared_albums(access_token)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401 and refresh_token:
-                logger.info("Access token expired, refreshing...")
-                access_token = await self._refresh_access_token(refresh_token)
-                albums = await self._list_shared_albums(access_token)
-            else:
-                raise
-
-        for album in albums:
-            share_info = album.get("shareInfo", {})
-            shareable_url = share_info.get("shareableUrl", "")
-            if self._urls_match(shareable_url, resolved_url):
-                title = album.get("title", "")
-                cover_base_url = album.get("coverPhotoBaseUrl")
-                cover_url = f"{cover_base_url}=w2000-h2000" if cover_base_url else None
-                return AlbumMetadata(title=title, cover_photo_url=cover_url)
-
-        logger.warning("No matching album found for URL: %s", share_url)
-        return None
-
-    async def _list_shared_albums(self, access_token: str) -> list[dict]:
-        """페이지네이션하여 모든 공유 앨범 조회."""
-        albums: list[dict] = []
-        next_page_token = None
-
-        async with httpx.AsyncClient(timeout=30) as client:
-            while True:
-                params = {"pageSize": 50}
-                if next_page_token:
-                    params["pageToken"] = next_page_token
-
-                resp = await client.get(
-                    f"{self.BASE_URL}/sharedAlbums",
-                    params=params,
-                    headers={"Authorization": f"Bearer {access_token}"},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-
-                albums.extend(data.get("sharedAlbums", []))
-                next_page_token = data.get("nextPageToken")
-                if not next_page_token:
-                    break
-
-        return albums
-
-    async def _refresh_access_token(self, refresh_token: str) -> str:
-        """만료된 access token 갱신."""
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                self.TOKEN_URL,
-                data={
-                    "client_id": settings.GOOGLE_CLIENT_ID,
-                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                    "refresh_token": refresh_token,
-                    "grant_type": "refresh_token",
+            async with httpx.AsyncClient(
+                timeout=15,
+                follow_redirects=True,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
                 },
-            )
-            resp.raise_for_status()
-            return resp.json()["access_token"]
+            ) as client:
+                resp = await client.get(resolved_url)
+                resp.raise_for_status()
+                html = resp.text
+        except Exception as e:
+            logger.warning("Failed to fetch Google Photos URL %s: %s", share_url, e)
+            return None
+
+        title = self._extract_og_tag(html, "og:title")
+        cover_url = self._extract_og_tag(html, "og:image")
+
+        if not title and not cover_url:
+            logger.warning("No OG meta tags found for URL: %s", share_url)
+            return None
+
+        logger.info(
+            "OG metadata for %s — title=%r, cover=%s",
+            share_url,
+            title,
+            cover_url[:80] if cover_url else None,
+        )
+        return AlbumMetadata(title=title or "", cover_photo_url=cover_url)
+
+    @staticmethod
+    def _extract_og_tag(html: str, property_name: str) -> str | None:
+        """HTML에서 <meta property="og:xxx" content="..."> 값 추출."""
+        pattern = (
+            rf'<meta\s+[^>]*property=["\']({re.escape(property_name)})["\']'
+            rf'\s+[^>]*content=["\']([^"\']*)["\']'
+        )
+        match = re.search(pattern, html, re.IGNORECASE)
+        if match:
+            return match.group(2).strip()
+
+        # content가 property 앞에 오는 경우
+        pattern_rev = (
+            rf'<meta\s+[^>]*content=["\']([^"\']*)["\']'
+            rf'\s+[^>]*property=["\']({re.escape(property_name)})["\']'
+        )
+        match_rev = re.search(pattern_rev, html, re.IGNORECASE)
+        if match_rev:
+            return match_rev.group(1).strip()
+
+        return None
 
     async def _resolve_share_url(self, url: str) -> str:
         """photos.app.goo.gl 단축 URL → photos.google.com 전체 URL로 변환."""
@@ -99,14 +85,3 @@ class GooglePhotosAPI:
                 resp = await client.head(url)
                 return str(resp.url)
         return url
-
-    @staticmethod
-    def _urls_match(url_a: str, url_b: str) -> bool:
-        """두 URL이 같은 앨범을 가리키는지 비교 (쿼리스트링 무시)."""
-        parsed_a = urlparse(url_a)
-        parsed_b = urlparse(url_b)
-        # 호스트 + 경로만 비교 (끝 슬래시 정규화)
-        return (
-            parsed_a.hostname == parsed_b.hostname
-            and parsed_a.path.rstrip("/") == parsed_b.path.rstrip("/")
-        )
