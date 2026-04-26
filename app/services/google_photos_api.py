@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AlbumMetadata:
     title: str
+    subtitle: str | None
     cover_photo_url: str | None
     cover_photo_bytes: bytes | None = None
     cover_photo_content_type: str | None = None
@@ -56,6 +57,9 @@ class GooglePhotosAPI:
             cover_url[:80] if cover_url else None,
         )
 
+        # "ㅇㅇ · Jan 19 – 23, 2024 📸" → title="ㅇㅇ", subtitle="Jan 19 – 23, 2024"
+        parsed_title, parsed_subtitle = self._parse_og_title(title or "")
+
         # Download cover image bytes for R2 re-upload (avoids CORS issues)
         cover_bytes = None
         cover_content_type = None
@@ -63,11 +67,36 @@ class GooglePhotosAPI:
             cover_bytes, cover_content_type = await self._download_image(cover_url)
 
         return AlbumMetadata(
-            title=title or "",
+            title=parsed_title,
+            subtitle=parsed_subtitle,
             cover_photo_url=cover_url,
             cover_photo_bytes=cover_bytes,
             cover_photo_content_type=cover_content_type,
         )
+
+    @staticmethod
+    def _strip_emoji(text: str) -> str:
+        """이모지 제거."""
+        return re.sub(
+            r'[\U0001F300-\U0001FAFF\U00002702-\U000027B0\U0000FE00-\U0000FE0F\U0000200D]+',
+            '', text,
+        ).strip()
+
+    @classmethod
+    def _parse_og_title(cls, raw_title: str) -> tuple[str, str | None]:
+        """OG 제목을 title · subtitle 로 분리. 이모지 제거.
+
+        예: "ㅇㅇ · Jan 19 – 23, 2024 📸" → ("ㅇㅇ", "Jan 19 – 23, 2024")
+        """
+        if not raw_title:
+            return "", None
+
+        # middot(·) 또는 bullet(•) 구분자 기준 분리
+        parts = re.split(r'\s*[·•]\s*', raw_title, maxsplit=1)
+        title = cls._strip_emoji(parts[0])
+        subtitle = cls._strip_emoji(parts[1]) if len(parts) > 1 else None
+
+        return title, subtitle or None
 
     @staticmethod
     def _extract_og_tag(html: str, property_name: str) -> str | None:

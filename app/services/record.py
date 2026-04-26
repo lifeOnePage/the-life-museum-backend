@@ -39,6 +39,8 @@ class RecordService:
 
         if album_meta and (not title or not title.strip()):
             title = album_meta.title or title
+        if album_meta and album_meta.subtitle and (not subtitle or not subtitle.strip()):
+            subtitle = album_meta.subtitle
 
         record = Record(
             creator_id=user_id,
