@@ -52,7 +52,7 @@ async def create_record(
     service = RecordService(db)
     record = await service.create_record(
         user_id=current_user.id,
-        title=body.title,
+        title=body.title or "",
         subtitle=body.subTitle,
         google_photo_url=body.googlePhotoUrl,
         icloud_url=body.icloudUrl,
@@ -77,6 +77,7 @@ async def create_record(
         isPublic=record.is_public,
         bgmId=record.bgm_id,
         bgmUrl=record.bgm_url,
+        coverImage=CoverImageInfo(url=record.cover_image.url) if record.cover_image else None,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )

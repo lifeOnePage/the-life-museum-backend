@@ -29,7 +29,7 @@ class QaItem(BaseModel):
 
 # --- Record ---
 class RecordCreate(BaseModel):
-    title: str
+    title: str | None = None
     subTitle: str | None = None
     googlePhotoUrl: str | None = None
     icloudUrl: str | None = None
@@ -79,6 +79,7 @@ class RecordResponse(BaseModel):
     isPublic: bool = False
     bgmId: int | None = None
     bgmUrl: str | None = None
+    coverImage: CoverImageInfo | None = None
     createdAt: datetime
     updatedAt: datetime
 

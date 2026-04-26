@@ -226,6 +226,11 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     oauth_account = result.scalar_one_or_none()
 
     if oauth_account:
+        # 토큰 갱신: 새 scope로 재로그인 시 최신 토큰 저장
+        oauth_account.access_token = token_data.get("access_token")
+        if token_data.get("refresh_token"):
+            oauth_account.refresh_token = token_data.get("refresh_token")
+        await db.commit()
         user = oauth_account.user
         is_new_user = False
     else:
