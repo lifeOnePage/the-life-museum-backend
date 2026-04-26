@@ -51,8 +51,16 @@ class RecordService:
         self.db.add(record)
         await self.db.flush()
 
-        # 커버 이미지 자동 생성
-        if album_meta and album_meta.cover_photo_url:
+        # 커버 이미지 자동 생성 (R2에 재업로드하여 CORS 문제 방지)
+        if album_meta and album_meta.cover_photo_bytes:
+            from app.services.storage import R2StorageService
+            storage = R2StorageService()
+            content_type = album_meta.cover_photo_content_type or "image/jpeg"
+            ext = content_type.split("/")[-1].replace("jpeg", "jpg")
+            r2_url = await storage.upload_file(album_meta.cover_photo_bytes, content_type, ext)
+            cover = CoverImage(record_id=record.id, url=r2_url)
+            self.db.add(cover)
+        elif album_meta and album_meta.cover_photo_url:
             cover = CoverImage(record_id=record.id, url=album_meta.cover_photo_url)
             self.db.add(cover)
 

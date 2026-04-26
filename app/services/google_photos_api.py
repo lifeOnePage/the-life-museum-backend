@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 class AlbumMetadata:
     title: str
     cover_photo_url: str | None
+    cover_photo_bytes: bytes | None = None
+    cover_photo_content_type: str | None = None
 
 
 class GooglePhotosAPI:
@@ -53,7 +55,19 @@ class GooglePhotosAPI:
             title,
             cover_url[:80] if cover_url else None,
         )
-        return AlbumMetadata(title=title or "", cover_photo_url=cover_url)
+
+        # Download cover image bytes for R2 re-upload (avoids CORS issues)
+        cover_bytes = None
+        cover_content_type = None
+        if cover_url:
+            cover_bytes, cover_content_type = await self._download_image(cover_url)
+
+        return AlbumMetadata(
+            title=title or "",
+            cover_photo_url=cover_url,
+            cover_photo_bytes=cover_bytes,
+            cover_photo_content_type=cover_content_type,
+        )
 
     @staticmethod
     def _extract_og_tag(html: str, property_name: str) -> str | None:
@@ -76,6 +90,18 @@ class GooglePhotosAPI:
             return match_rev.group(1).strip()
 
         return None
+
+    async def _download_image(self, url: str) -> tuple[bytes | None, str | None]:
+        """이미지 URL에서 바이트 다운로드. 실패 시 (None, None)."""
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0]
+                return resp.content, content_type
+        except Exception as e:
+            logger.warning("Failed to download cover image %s: %s", url[:80], e)
+            return None, None
 
     async def _resolve_share_url(self, url: str) -> str:
         """photos.app.goo.gl 단축 URL → photos.google.com 전체 URL로 변환."""
