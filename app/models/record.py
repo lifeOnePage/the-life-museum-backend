@@ -109,6 +109,10 @@ class Record(Base):
     mybox_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     public_access_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # 외부 링크
+    external_link_title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    external_link_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # 비공개 접근 계정 목록 (PostgreSQL ARRAY)
     private_access_accounts: Mapped[List[str]] = mapped_column(
         ARRAY(Text),

@@ -43,6 +43,8 @@ async def get_record_list(
             isPublic=r.is_public,
             bgmId=r.bgm_id,
             bgmUrl=r.bgm_url,
+            externalLinkTitle=r.external_link_title,
+            externalLinkUrl=r.external_link_url,
             role=role,
             lifestory=LifestorySummary(
                 mood=r.lifestory.mood,
