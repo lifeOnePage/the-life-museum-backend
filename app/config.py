@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str = ""
 
+    # Mindlogic API Gateway
+    GATEWAY_API_KEY: str = ""
+    GATEWAY_BASE_URL: str = "https://factchat-cloud.mindlogic.ai/v1/gateway"
+
     # Google Gemini
     GOOGLE_GEMINI_API_KEY: str = ""
 

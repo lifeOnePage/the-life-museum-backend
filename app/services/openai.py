@@ -8,7 +8,10 @@ from app.config import settings
 
 class OpenAIService:
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        self.client = AsyncOpenAI(
+            api_key=settings.GATEWAY_API_KEY,
+            base_url=settings.GATEWAY_BASE_URL,
+        )
 
     async def generate_cover_image(
         self,
