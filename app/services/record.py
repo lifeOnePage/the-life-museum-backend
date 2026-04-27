@@ -86,7 +86,7 @@ class RecordService:
         await self.db.flush()
 
         default_events = [
-            {"title": "The Life Gallery", "timestamp": "2026", "description": ""},
+            {"title": "The Life Gallery", "timestamp": "2026", "description": "The Life Gallery"},
         ]
         for evt_data in default_events:
             self.db.add(Event(
