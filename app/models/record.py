@@ -64,6 +64,9 @@ class Record(Base):
 
     # 테마
     theme: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
+    # 뒷면 이미지 소스
+    back_cover_image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # 커버 제목 설정
     cover_title_visible: Mapped[bool] = mapped_column(

@@ -45,6 +45,7 @@ async def get_record_list(
             bgmUrl=r.bgm_url,
             externalLinkTitle=r.external_link_title,
             externalLinkUrl=r.external_link_url,
+            backCoverImageUrl=r.back_cover_image_url,
             role=role,
             lifestory=LifestorySummary(
                 mood=r.lifestory.mood,

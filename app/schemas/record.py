@@ -56,6 +56,7 @@ class RecordUpdate(BaseModel):
     bgmUrl: str | None = None
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
+    backCoverImageUrl: str | None = None
 
 
 class PublicUpdateRequest(BaseModel):
@@ -83,6 +84,7 @@ class RecordResponse(BaseModel):
     bgmUrl: str | None = None
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
+    backCoverImageUrl: str | None = None
     coverImage: CoverImageInfo | None = None
     createdAt: datetime
     updatedAt: datetime
@@ -131,6 +133,7 @@ class RecordDetailResponse(BaseModel):
     bgmUrl: str | None = None
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
+    backCoverImageUrl: str | None = None
     coverGenCount: int = 0
     storyGenCount: int = 0
     mediaList: list[MediaItem] = []
@@ -213,6 +216,7 @@ class RecordListItem(BaseModel):
     bgmUrl: str | None = None
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
+    backCoverImageUrl: str | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
     role: Literal["owner", "shared"] = "owner"

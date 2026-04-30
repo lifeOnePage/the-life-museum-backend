@@ -79,6 +79,7 @@ async def create_record(
         bgmUrl=record.bgm_url,
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
+        backCoverImageUrl=record.back_cover_image_url,
         coverImage=CoverImageInfo(url=record.cover_image.url) if record.cover_image else None,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
@@ -128,6 +129,7 @@ async def update_record(
         "bgmUrl": "bgm_url",
         "externalLinkTitle": "external_link_title",
         "externalLinkUrl": "external_link_url",
+        "backCoverImageUrl": "back_cover_image_url",
     }
     update_data = {}
     for schema_field, model_field in field_mapping.items():
@@ -158,6 +160,7 @@ async def update_record(
         bgmUrl=record.bgm_url,
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
+        backCoverImageUrl=record.back_cover_image_url,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -291,6 +294,7 @@ async def get_record(
         bgmUrl=record.bgm_url,
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
+        backCoverImageUrl=record.back_cover_image_url,
         coverGenCount=record.cover_gen_count,
         storyGenCount=record.story_gen_count,
         mediaList=media_list,
@@ -789,6 +793,7 @@ async def add_shared_record(
         isPublic=record.is_public,
         bgmId=record.bgm_id,
         bgmUrl=record.bgm_url,
+        backCoverImageUrl=record.back_cover_image_url,
         role="shared",
         lifestory=LifestorySummary(
             mood=record.lifestory.mood,
