@@ -39,19 +39,36 @@ class GooglePhotosScraper(BaseScraper):
         semaphore: asyncio.Semaphore,
         base_url: str,
     ) -> tuple[str, MediaType]:
-        """HEAD probe base_url=dv -> video면 VIDEO, 아니면 IMAGE."""
+        """Probe base_url=dv to detect video vs image.
+
+        Uses streaming GET (not HEAD) because some CDNs return different
+        Content-Type for HEAD requests.  The response body is never read,
+        so no bandwidth is wasted.
+        """
+        probe_url = base_url + "=dv"
         async with semaphore:
             try:
-                resp = await client.head(
-                    base_url + "=dv",
+                async with client.stream(
+                    "GET",
+                    probe_url,
                     follow_redirects=True,
                     timeout=self._PROBE_TIMEOUT,
+                ) as resp:
+                    ct = resp.headers.get("content-type", "")
+                    is_video = resp.status_code == 200 and ct.startswith("video/")
+                    if is_video:
+                        logger.info(
+                            "Probe VIDEO: %s (ct=%s)", base_url[-40:], ct,
+                        )
+                        return (base_url, MediaType.VIDEO)
+                    logger.info(
+                        "Probe IMAGE: %s (status=%d ct=%s)",
+                        base_url[-40:], resp.status_code, ct,
+                    )
+            except (httpx.TimeoutException, httpx.HTTPError) as exc:
+                logger.warning(
+                    "Probe failed: %s (%s)", base_url[-40:], exc,
                 )
-                ct = resp.headers.get("content-type", "")
-                if resp.status_code == 200 and ct.startswith("video/"):
-                    return (base_url, MediaType.VIDEO)
-            except (httpx.TimeoutException, httpx.HTTPError):
-                pass
         return (base_url, MediaType.IMAGE)
 
     async def scrape(self, url: str) -> list[MediaItem]:
@@ -84,7 +101,7 @@ class GooglePhotosScraper(BaseScraper):
             if not seen_bases:
                 return []
 
-            # Phase 3: concurrent HEAD probing
+            # Phase 3: concurrent streaming-GET probing (Content-Type detection)
             semaphore = asyncio.Semaphore(self._PROBE_CONCURRENCY)
             tasks = [
                 self._probe_media_type(client, semaphore, b) for b in seen_bases
