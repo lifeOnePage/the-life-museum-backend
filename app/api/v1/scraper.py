@@ -1,11 +1,13 @@
+import logging
 from fastapi import APIRouter, Query
 from fastapi.responses import Response
-from starlette.responses import StreamingResponse
 import httpx
 
 from app.schemas.scraper import ScraperRequest, ScraperResponse
 from app.services.scraper import BaseScraper, GooglePhotosScraper, ICloudScraper, MyBoxScraper
 from app.core.exceptions import BadRequestException, ScraperException
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -61,30 +63,22 @@ async def detect_provider(request: ScraperRequest):
 
 @router.get("/proxy/image")
 async def proxy_image(url: str = Query(..., description="Media URL to proxy")):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://photos.google.com/",
-    }
     try:
-        async with httpx.AsyncClient(follow_redirects=True, headers=headers) as client:
-            req = client.build_request("GET", url)
-            resp = await client.send(req, stream=True, timeout=30.0)
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=30.0,
+        ) as client:
+            resp = await client.get(url)
 
             if resp.status_code != 200:
-                await resp.aclose()
+                logger.warning("Upstream %s for %s", resp.status_code, url[:120])
                 return Response(status_code=resp.status_code, content=b"Upstream error")
 
             content_type = resp.headers.get("content-type", "image/jpeg")
-
-            if content_type.startswith("video/"):
-                # Video: stream chunks (client closes when generator ends)
-                content = await resp.aread()
-                return Response(content=content, media_type=content_type)
-
-            # Images: read fully (small, benefits from Content-Length)
-            content = await resp.aread()
-            return Response(content=content, media_type=content_type)
+            return Response(content=resp.content, media_type=content_type)
     except httpx.TimeoutException:
+        logger.warning("Timeout fetching %s", url[:120])
         raise ScraperException("Media fetch timed out")
     except Exception as e:
+        logger.exception("proxy_image error for %s", url[:120])
         raise ScraperException(f"Failed to fetch media: {str(e)}")
