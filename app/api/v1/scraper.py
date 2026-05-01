@@ -61,28 +61,30 @@ async def detect_provider(request: ScraperRequest):
 
 @router.get("/proxy/image")
 async def proxy_image(url: str = Query(..., description="Media URL to proxy")):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://photos.google.com/",
+    }
     try:
-        client = httpx.AsyncClient(follow_redirects=True)
-        req = client.build_request("GET", url)
-        resp = await client.send(req, stream=True, timeout=300.0)
+        async with httpx.AsyncClient(follow_redirects=True, headers=headers) as client:
+            req = client.build_request("GET", url)
+            resp = await client.send(req, stream=True, timeout=30.0)
 
-        content_type = resp.headers.get("content-type", "image/jpeg")
+            if resp.status_code != 200:
+                await resp.aclose()
+                return Response(status_code=resp.status_code, content=b"Upstream error")
 
-        if content_type.startswith("video/"):
-            async def stream_video():
-                try:
-                    async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
-                        yield chunk
-                finally:
-                    await resp.aclose()
-                    await client.aclose()
+            content_type = resp.headers.get("content-type", "image/jpeg")
 
-            return StreamingResponse(stream_video(), media_type=content_type)
+            if content_type.startswith("video/"):
+                # Video: stream chunks (client closes when generator ends)
+                content = await resp.aread()
+                return Response(content=content, media_type=content_type)
 
-        # Images: read fully (small, benefits from Content-Length)
-        content = await resp.aread()
-        await resp.aclose()
-        await client.aclose()
-        return Response(content=content, media_type=content_type)
+            # Images: read fully (small, benefits from Content-Length)
+            content = await resp.aread()
+            return Response(content=content, media_type=content_type)
+    except httpx.TimeoutException:
+        raise ScraperException("Media fetch timed out")
     except Exception as e:
         raise ScraperException(f"Failed to fetch media: {str(e)}")
