@@ -1,6 +1,7 @@
 import logging
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response
+from starlette.responses import StreamingResponse
 import httpx
 
 from app.schemas.scraper import ScraperRequest, ScraperResponse
@@ -62,12 +63,39 @@ async def detect_provider(request: ScraperRequest):
 
 
 @router.get("/proxy/image")
-async def proxy_image(url: str = Query(..., description="Media URL to proxy")):
+async def proxy_image(
+    request: Request,
+    url: str = Query(..., description="Media URL to proxy"),
+):
     try:
+        # First, resolve the final URL and get content info with a HEAD-like GET
         async with httpx.AsyncClient(
             follow_redirects=True,
             timeout=30.0,
         ) as client:
+            # Check if browser sent a Range header
+            range_header = request.headers.get("range")
+
+            # For range requests (video seeking), fetch with Range pass-through
+            if range_header:
+                headers = {"Range": range_header}
+                resp = await client.get(url, headers=headers)
+                content_type = resp.headers.get("content-type", "application/octet-stream")
+                resp_headers = {
+                    "Accept-Ranges": "bytes",
+                    "Content-Type": content_type,
+                }
+                if "content-range" in resp.headers:
+                    resp_headers["Content-Range"] = resp.headers["content-range"]
+                if "content-length" in resp.headers:
+                    resp_headers["Content-Length"] = resp.headers["content-length"]
+                return Response(
+                    content=resp.content,
+                    status_code=resp.status_code,  # 206 Partial Content
+                    headers=resp_headers,
+                )
+
+            # Non-range request: fetch full content
             resp = await client.get(url)
 
             if resp.status_code != 200:
@@ -75,7 +103,12 @@ async def proxy_image(url: str = Query(..., description="Media URL to proxy")):
                 return Response(status_code=resp.status_code, content=b"Upstream error")
 
             content_type = resp.headers.get("content-type", "image/jpeg")
-            return Response(content=resp.content, media_type=content_type)
+            resp_headers = {"Accept-Ranges": "bytes"}
+            return Response(
+                content=resp.content,
+                media_type=content_type,
+                headers=resp_headers,
+            )
     except httpx.TimeoutException:
         logger.warning("Timeout fetching %s", url[:120])
         raise ScraperException("Media fetch timed out")
