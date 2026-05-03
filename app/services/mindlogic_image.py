@@ -47,18 +47,18 @@ class MindlogicImageService:
         payload = {
             "model": self.MODEL,
             "prompt": prompt,
-            "referenceImages": [
+            "reference_images": [
                 {
-                    "referenceId": 1,
-                    "referenceType": reference_type,
-                    "referenceImage": {
-                        "bytesBase64Encoded": encoded,
+                    "reference_id": 1,
+                    "reference_type": reference_type,
+                    "reference_image": {
+                        "image_bytes": encoded,
                     },
                 }
             ],
             "config": {
-                "numberOfImages": 1,
-                "outputMimeType": "image/png",
+                "number_of_images": 1,
+                "output_mime_type": "image/png",
             },
         }
 
