@@ -74,7 +74,13 @@ class MindlogicImageService:
                 headers=self._headers(),
                 json=payload,
             )
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                logger.error(
+                    "MindLogic edit-image error %d: %s",
+                    resp.status_code,
+                    resp.text,
+                )
+                resp.raise_for_status()
             data = resp.json()
 
         # 전체 응답 구조를 로깅 (테스트 단계에서 실제 포맷 파악용)
