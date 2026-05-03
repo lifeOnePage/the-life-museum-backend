@@ -743,16 +743,48 @@ async def generate_cover_image(
     return success_response(data=data, code=201, message="Cover image generated")
 
 
+ML_COVER_STYLE_PROMPTS: dict[str, str] = {
+    "minimal": (
+        "Square vinyl album cover. Black-and-white ink drawing illustration. "
+        "Confident hand-drawn linework with varied stroke weight. "
+        "The subject is rendered with precise detail; background is minimal white space. "
+        "Achromatic only: ink black, graphite gray, paper white. "
+        "No text, no watermark, no border."
+    ),
+    "animation": (
+        "Square vinyl album cover. Warm painterly animation-style illustration, "
+        "reminiscent of a Makoto Shinkai film frame. "
+        "Watercolor-gouache rendering with soft atmospheric lighting. "
+        "Figures simplified into color masses, not photorealistic. "
+        "Luminous sky, gentle color palette of 5-6 muted hues. "
+        "No text, no watermark, no border."
+    ),
+    "abstract": (
+        "Square vinyl album cover. Bold graphic pop-art style illustration. "
+        "Flat color planes with strong silhouettes and dramatic value contrast. "
+        "Subject rendered as simplified shapes with thick outlines. "
+        "Deliberate limited palette of 4-7 vibrant colors. "
+        "Screen-print or risograph aesthetic. "
+        "No text, no watermark, no border."
+    ),
+}
+
 @router.post("/{record_id}/cover/generate-ml", response_model=ApiResponse)
 async def generate_cover_image_mindlogic(
     record_id: uuid.UUID,
-    prompt: str = Form(...),
+    style: str = Form(...),
     reference_image: UploadFile = File(...),
-    reference_type: str = Form("REFERENCE_TYPE_STYLE"),
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """MindLogic Imagen edit-image 테스트 엔드포인트."""
+    """MindLogic Imagen edit-image 엔드포인트. style로 미리 정의된 프롬프트 사용."""
+    style_prompt = ML_COVER_STYLE_PROMPTS.get(style)
+    if not style_prompt:
+        raise HTTPException(
+            status_code=400,
+            detail=f"지원하지 않는 스타일입니다: {style}",
+        )
+
     service = RecordService(db)
     record = await service.get_record_by_id(record_id)
     if not record:
@@ -775,10 +807,9 @@ async def generate_cover_image_mindlogic(
 
     try:
         image_bytes, mime_type, ext = await ml_service.generate_edit_image(
-            prompt=prompt,
+            prompt=style_prompt,
             reference_image_bytes=img_content,
             mime_type=ref_mime,
-            reference_type=reference_type,
         )
     except Exception as e:
         logger.error("MindLogic image generation failed: %s: %s", type(e).__name__, e)
