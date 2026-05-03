@@ -37,6 +37,7 @@ from app.schemas.record import (
 from app.services.record import RecordService
 from app.services.openai import OpenAIService
 from app.services.gemini import GeminiService
+from app.services.mindlogic_image import MindlogicImageService
 from app.services.storage import R2StorageService
 from app.core.exceptions import ForbiddenException, NotFoundException
 
@@ -740,6 +741,60 @@ async def generate_cover_image(
         remainingGenerations=3 - record.cover_gen_count,
     )
     return success_response(data=data, code=201, message="Cover image generated")
+
+
+@router.post("/{record_id}/cover/generate-ml", response_model=ApiResponse)
+async def generate_cover_image_mindlogic(
+    record_id: uuid.UUID,
+    prompt: str = Form(...),
+    reference_image: UploadFile = File(...),
+    reference_type: str = Form("REFERENCE_TYPE_STYLE"),
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """MindLogic Imagen edit-image 테스트 엔드포인트."""
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    if record.cover_gen_count >= 3:
+        raise HTTPException(
+            status_code=400,
+            detail="생성 횟수가 초과되었습니다 (최대 3회)",
+        )
+
+    img_content = await reference_image.read()
+    if not img_content:
+        raise HTTPException(status_code=400, detail="참고 이미지가 비어있습니다")
+
+    ref_mime = reference_image.content_type or "image/jpeg"
+
+    ml_service = MindlogicImageService()
+    storage = R2StorageService()
+
+    try:
+        image_bytes, mime_type, ext = await ml_service.generate_edit_image(
+            prompt=prompt,
+            reference_image_bytes=img_content,
+            mime_type=ref_mime,
+            reference_type=reference_type,
+        )
+    except Exception as e:
+        logger.error("MindLogic image generation failed: %s: %s", type(e).__name__, e)
+        raise HTTPException(status_code=500, detail="이미지 생성에 실패했습니다")
+
+    url = await storage.upload_file(image_bytes, mime_type, ext)
+
+    record.cover_gen_count += 1
+    await db.commit()
+    await db.refresh(record)
+
+    data = CoverGenerateImageResponse(
+        images=[url],
+        remainingGenerations=3 - record.cover_gen_count,
+    )
+    return success_response(data=data, code=201, message="Cover image generated (MindLogic)")
 
 
 @router.put("/{record_id}/cover/url", response_model=ApiResponse)
