@@ -53,6 +53,7 @@ class MindlogicImageService:
                     "reference_type": reference_type,
                     "reference_image": {
                         "image_bytes": encoded,
+                        "mime_type": mime_type,
                     },
                 }
             ],
