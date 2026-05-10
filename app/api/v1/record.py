@@ -16,6 +16,7 @@ from app.schemas.record import (
     RecordUpdate,
     RecordResponse,
     RecordDetailResponse,
+    RecordMediaResponse,
     RecordListItem,
     CoverImageInfo,
     LifestorySummary,
@@ -247,9 +248,6 @@ async def get_record(
     if not record:
         raise NotFoundException("Record not found")
 
-    # 스크래핑으로 mediaList 구성
-    media_list = await service.scrape_media_list(record)
-
     cover_image = None
     if record.cover_image:
         cover_image = CoverImageInfo(url=record.cover_image.url)
@@ -298,13 +296,28 @@ async def get_record(
         backCoverImageUrl=record.back_cover_image_url,
         coverGenCount=record.cover_gen_count,
         storyGenCount=record.story_gen_count,
-        mediaList=media_list,
         coverImage=cover_image,
         lifestory=lifestory,
         timeline=timeline,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
+    return success_response(data=data)
+
+
+@router.get("/{record_id}/media", response_model=ApiResponse)
+async def get_record_media(
+    record_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """스크래핑으로 mediaList 구성 (lazy 호출용)."""
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    media_list = await service.scrape_media_list(record)
+    data = RecordMediaResponse(mediaList=media_list)
     return success_response(data=data)
 
 

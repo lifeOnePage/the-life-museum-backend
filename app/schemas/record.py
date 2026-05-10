@@ -136,7 +136,6 @@ class RecordDetailResponse(BaseModel):
     backCoverImageUrl: str | None = None
     coverGenCount: int = 0
     storyGenCount: int = 0
-    mediaList: list[MediaItem] = []
     coverImage: CoverImageInfo | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
@@ -144,6 +143,10 @@ class RecordDetailResponse(BaseModel):
     updatedAt: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RecordMediaResponse(BaseModel):
+    mediaList: list[MediaItem] = []
 
 
 # --- Lifestory ---
