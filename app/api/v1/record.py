@@ -1,9 +1,11 @@
 import asyncio
+import json
 import logging
 import re
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -327,6 +329,28 @@ async def get_record_media(
     media_list = await service.scrape_media_list(record)
     data = RecordMediaResponse(mediaList=media_list)
     return success_response(data=data)
+
+
+@router.get("/{record_id}/media/stream")
+async def stream_record_media(
+    record_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """SSE 스트리밍으로 스크래핑 진행 상황 + mediaList 반환."""
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    async def event_generator():
+        async for event in service.scrape_media_list_stream(record):
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/{record_id}/lifestory", response_model=ApiResponse)

@@ -206,6 +206,44 @@ class RecordService:
 
         return items
 
+    async def scrape_media_list_stream(self, record: Record):
+        """SSE로 스크래핑 진행 상황 스트리밍. 각 단계마다 yield."""
+        items: list[MediaItem] = []
+        source_urls = [
+            ("google_photos", record.google_photo_url),
+            ("icloud", record.icloud_url),
+            ("mybox", record.mybox_url),
+        ]
+        scrapers = {
+            "google_photos": GooglePhotosScraper,
+            "icloud": ICloudScraper,
+            "mybox": MyBoxScraper,
+        }
+
+        active_sources = [(p, u) for p, u in source_urls if u]
+        total = len(active_sources)
+
+        for idx, (provider, url) in enumerate(active_sources):
+            yield {"type": "progress", "phase": "scraping",
+                   "source": provider, "sourceIndex": idx, "totalSources": total}
+            try:
+                scraper = scrapers[provider]()
+                media_items = await scraper.scrape(url)
+                items.extend(media_items)
+                yield {"type": "progress", "phase": "source_done",
+                       "source": provider, "sourceIndex": idx, "totalSources": total,
+                       "itemsFound": len(media_items)}
+            except Exception as e:
+                logger.error("Scraping failed: provider=%s error=%s", provider, e)
+                yield {"type": "progress", "phase": "source_error",
+                       "source": provider, "sourceIndex": idx, "totalSources": total}
+
+        yield {"type": "progress", "phase": "optimizing"}
+        items = await self._apply_video_cache(items, record.id)
+
+        yield {"type": "complete",
+               "mediaList": [item.model_dump() for item in items]}
+
     async def _apply_video_cache(
         self, items: list[MediaItem], record_id: uuid.UUID
     ) -> list[MediaItem]:
