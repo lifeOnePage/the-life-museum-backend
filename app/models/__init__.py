@@ -1,5 +1,6 @@
 from app.models.user import User, OAuthAccount, PhoneVerification, OAuthProvider
 from app.models.email_verification import EmailVerification
+from app.models.credit import CreditTransaction, TxType
 from app.models.record import Record
 from app.models.user_record_association import UserRecordAssociation
 from app.models.cover_image import CoverImage
@@ -26,4 +27,7 @@ __all__ = [
     "Qa",
     # Video 관련
     "VideoCache",
+    # Credit 관련
+    "CreditTransaction",
+    "TxType",
 ]
