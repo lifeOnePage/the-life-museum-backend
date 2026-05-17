@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     R2_BUCKET_NAME: str = ""
     R2_PUBLIC_URL: str = ""
 
+    # Payment Gateways
+    STRIPE_SECRET_KEY: str = ""
+    PORTONE_API_KEY: str = ""
+    PORTONE_API_SECRET: str = ""
+
     # Dev
     DEV_AUTH_KEY: str = ""
 
