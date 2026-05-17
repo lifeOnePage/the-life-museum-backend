@@ -206,13 +206,22 @@ class RecordService:
 
         return items
 
-    async def scrape_media_list_stream(self, record: Record):
-        """SSE로 스크래핑 진행 상황 스트리밍. 각 단계마다 yield."""
+    @staticmethod
+    async def scrape_media_list_stream_standalone(record_snapshot: dict):
+        """
+        SSE로 스크래핑 진행 상황 스트리밍 (DB 세션 미사용).
+
+        record_snapshot: {"id", "google_photo_url", "icloud_url", "mybox_url"}
+        스크래핑은 외부 HTTP 요청만 수행하므로 DB 불필요.
+        _apply_video_cache만 별도 세션을 짧게 열어 처리.
+        """
+        from app.database import AsyncSessionLocal
+
         items: list[MediaItem] = []
         source_urls = [
-            ("google_photos", record.google_photo_url),
-            ("icloud", record.icloud_url),
-            ("mybox", record.mybox_url),
+            ("google_photos", record_snapshot["google_photo_url"]),
+            ("icloud", record_snapshot["icloud_url"]),
+            ("mybox", record_snapshot["mybox_url"]),
         ]
         scrapers = {
             "google_photos": GooglePhotosScraper,
@@ -222,6 +231,8 @@ class RecordService:
 
         active_sources = [(p, u) for p, u in source_urls if u]
         total = len(active_sources)
+
+        yield {"type": "progress", "phase": "started", "totalSources": total}
 
         for idx, (provider, url) in enumerate(active_sources):
             yield {"type": "progress", "phase": "scraping",
@@ -239,7 +250,12 @@ class RecordService:
                        "source": provider, "sourceIndex": idx, "totalSources": total}
 
         yield {"type": "progress", "phase": "optimizing"}
-        items = await self._apply_video_cache(items, record.id)
+
+        # Open a short-lived DB session only for video cache lookup
+        record_id = record_snapshot["id"]
+        async with AsyncSessionLocal() as db:
+            service = RecordService(db)
+            items = await service._apply_video_cache(items, record_id)
 
         yield {"type": "complete",
                "mediaList": [item.model_dump() for item in items]}
