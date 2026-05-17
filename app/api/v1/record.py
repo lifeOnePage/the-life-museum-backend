@@ -39,6 +39,7 @@ from app.schemas.record import (
     PublicUpdateRequest,
 )
 from app.services.record import RecordService
+from app.services.credit import CreditService, InsufficientCreditsError
 from app.services.openai import OpenAIService
 from app.services.gemini import GeminiService
 from app.services.mindlogic_image import MindlogicImageService
@@ -54,6 +55,17 @@ async def create_record(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 크레딧 차감 (900C) — 앨범 생성과 같은 트랜잭션
+    credit_service = CreditService(db)
+    try:
+        await credit_service.deduct_credits(
+            user_id=current_user.id,
+            tx_type="album_create",
+            reference_id=None,  # record.id는 아직 없음 — commit 후 update 가능
+        )
+    except InsufficientCreditsError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+
     service = RecordService(db)
     record = await service.create_record(
         user_id=current_user.id,
@@ -63,6 +75,10 @@ async def create_record(
         icloud_url=body.icloudUrl,
         mybox_url=body.myboxUrl,
     )
+
+    # 둘 다 flush 상태 — 한 번에 commit (원자적)
+    await db.commit()
+
     data = RecordResponse(
         id=record.id,
         title=record.title,
