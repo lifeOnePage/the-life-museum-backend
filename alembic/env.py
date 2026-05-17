@@ -12,6 +12,7 @@ from app.database import Base
 from app.models import (
     User, OAuthAccount, PhoneVerification, EmailVerification,
     Record, CoverImage, Timeline, Event, Lifestory, Qa,
+    VideoCache,
 )
 
 config = context.config

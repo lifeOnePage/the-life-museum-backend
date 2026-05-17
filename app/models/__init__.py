@@ -5,6 +5,7 @@ from app.models.user_record_association import UserRecordAssociation
 from app.models.cover_image import CoverImage
 from app.models.timeline import Timeline, Event
 from app.models.lifestory import Lifestory, Qa
+from app.models.video_cache import VideoCache
 
 __all__ = [
     # User 관련
@@ -23,4 +24,6 @@ __all__ = [
     # Lifestory 관련
     "Lifestory",
     "Qa",
+    # Video 관련
+    "VideoCache",
 ]
