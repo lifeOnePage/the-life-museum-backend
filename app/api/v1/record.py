@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 import uuid
@@ -139,7 +140,14 @@ async def update_record(
         if value is not None:
             update_data[model_field] = value
 
+    # Detect Google Photos URL change for pre-transcoding
+    old_google_url = record.google_photo_url
     record = await service.update_record(record, update_data)
+    new_google_url = update_data.get("google_photo_url")
+    if new_google_url and new_google_url != old_google_url:
+        asyncio.create_task(
+            RecordService._pretranscode_album_videos(record.id, new_google_url)
+        )
 
     data = RecordResponse(
         id=record.id,

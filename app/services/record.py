@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 
@@ -10,9 +11,14 @@ from app.models.user_record_association import UserRecordAssociation
 from app.models.lifestory import Lifestory, Qa
 from app.models.timeline import Timeline, Event
 from app.models.cover_image import CoverImage
-from app.schemas.scraper import MediaItem
+from app.models.video_cache import VideoCache
+from app.schemas.scraper import MediaItem, MediaType
 from app.services.scraper import GooglePhotosScraper, ICloudScraper, MyBoxScraper
 from app.services.google_photos_api import GooglePhotosAPI, AlbumMetadata
+from app.services.video_transcoder import (
+    VideoTranscoderService,
+    compute_source_url_hash,
+)
 from app.core.exceptions import ConflictException, ForbiddenException, NotFoundException
 
 
@@ -98,6 +104,14 @@ class RecordService:
 
         await self.db.commit()
         await self.db.refresh(record, attribute_names=["cover_image"])
+
+        # Pre-transcoding: scrape videos from the album and start transcoding
+        # in the background so optimized files are ready before the first visit.
+        if google_photo_url:
+            asyncio.create_task(
+                self._pretranscode_album_videos(record.id, google_photo_url)
+            )
+
         return record
 
     async def _fetch_google_album_metadata(
@@ -187,7 +201,169 @@ class RecordService:
                 logger.error("Scraping failed for provider=%s url=%s: %s", provider, url, e)
                 continue
 
+        # ── Video cache: swap original URLs for optimized R2 URLs ──
+        items = await self._apply_video_cache(items, record.id)
+
         return items
+
+    async def _apply_video_cache(
+        self, items: list[MediaItem], record_id: uuid.UUID
+    ) -> list[MediaItem]:
+        """
+        For video items, check video_cache for ready R2 URLs.
+        If cached: swap original_url → R2 URL (720p faststart).
+        If not cached: start background transcoding, return original URL (fallback).
+        """
+        video_items = [i for i in items if i.type == MediaType.VIDEO]
+        if not video_items:
+            return items
+
+        # Batch-lookup all video hashes
+        hashes = {
+            compute_source_url_hash(v.original_url): v for v in video_items
+        }
+        stmt = select(VideoCache).where(
+            VideoCache.source_url_hash.in_(list(hashes.keys()))
+        )
+        result = await self.db.execute(stmt)
+        cached = {row.source_url_hash: row for row in result.scalars().all()}
+
+        # Collect URLs that need transcoding
+        urls_to_transcode: list[str] = []
+
+        result_items: list[MediaItem] = []
+        for item in items:
+            if item.type != MediaType.VIDEO:
+                result_items.append(item)
+                continue
+
+            url_hash = compute_source_url_hash(item.original_url)
+            cache_entry = cached.get(url_hash)
+
+            if cache_entry and cache_entry.status == "ready":
+                # Cache hit: use optimized R2 URL
+                result_items.append(MediaItem(
+                    type=item.type,
+                    thumbnail_url=item.thumbnail_url,
+                    original_url=cache_entry.r2_url,
+                ))
+            else:
+                # Cache miss or still processing: return original URL as fallback
+                result_items.append(item)
+                if not cache_entry:
+                    urls_to_transcode.append(item.original_url)
+
+        # Start background transcoding for uncached videos
+        if urls_to_transcode:
+            asyncio.create_task(
+                self._background_transcode_videos(urls_to_transcode, record_id)
+            )
+
+        return result_items
+
+    @staticmethod
+    async def _background_transcode_videos(
+        urls: list[str], record_id: uuid.UUID
+    ) -> None:
+        """Background task: transcode videos and save to cache DB."""
+        from app.database import AsyncSessionLocal
+
+        transcoder = VideoTranscoderService()
+
+        for url in urls:
+            url_hash = compute_source_url_hash(url)
+            try:
+                async with AsyncSessionLocal() as db:
+                    # Check if another task already started this
+                    existing = await db.scalar(
+                        select(VideoCache).where(
+                            VideoCache.source_url_hash == url_hash
+                        )
+                    )
+                    if existing:
+                        continue
+
+                    # Create pending record
+                    cache_entry = VideoCache(
+                        source_url_hash=url_hash,
+                        record_id=record_id,
+                        r2_url="",
+                        status="processing",
+                    )
+                    db.add(cache_entry)
+                    await db.commit()
+                    await db.refresh(cache_entry)
+
+                # Transcode (outside DB session — long-running)
+                result = await transcoder.transcode_and_upload(url, record_id)
+
+                async with AsyncSessionLocal() as db:
+                    entry = await db.scalar(
+                        select(VideoCache).where(
+                            VideoCache.source_url_hash == url_hash
+                        )
+                    )
+                    if entry:
+                        entry.r2_url = result["r2_url"]
+                        entry.original_size_bytes = result["original_size_bytes"]
+                        entry.optimized_size_bytes = result["optimized_size_bytes"]
+                        entry.duration_seconds = result["duration_seconds"]
+                        entry.status = "ready"
+                        await db.commit()
+
+                logger.info(
+                    "Video transcoded: hash=%s r2_url=%s",
+                    url_hash[:12],
+                    result["r2_url"],
+                )
+
+            except Exception as e:
+                logger.error(
+                    "Background transcoding failed: hash=%s url=%s error=%s",
+                    url_hash[:12],
+                    url[:80],
+                    e,
+                )
+                # Mark as failed
+                try:
+                    async with AsyncSessionLocal() as db:
+                        entry = await db.scalar(
+                            select(VideoCache).where(
+                                VideoCache.source_url_hash == url_hash
+                            )
+                        )
+                        if entry:
+                            entry.status = "failed"
+                            await db.commit()
+                except Exception:
+                    pass
+
+    @staticmethod
+    async def _pretranscode_album_videos(
+        record_id: uuid.UUID, google_photo_url: str
+    ) -> None:
+        """Scrape Google Photos album for videos and start transcoding immediately."""
+        try:
+            scraper = GooglePhotosScraper()
+            media_items = await scraper.scrape(google_photo_url)
+            video_urls = [
+                item.original_url
+                for item in media_items
+                if item.type == MediaType.VIDEO
+            ]
+            if video_urls:
+                logger.info(
+                    "Pre-transcoding %d videos for record=%s",
+                    len(video_urls),
+                    record_id,
+                )
+                await RecordService._background_transcode_videos(
+                    video_urls, record_id
+                )
+        except Exception as e:
+            logger.error(
+                "Pre-transcoding failed for record=%s: %s", record_id, e
+            )
 
     async def get_lifestory(self, record_id: uuid.UUID) -> Lifestory | None:
         stmt = (
