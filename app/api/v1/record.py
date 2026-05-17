@@ -332,18 +332,30 @@ async def get_record_media(
 
 
 @router.get("/{record_id}/media/stream")
-async def stream_record_media(
-    record_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    """SSE 스트리밍으로 스크래핑 진행 상황 + mediaList 반환."""
-    service = RecordService(db)
-    record = await service.get_record_by_id(record_id)
-    if not record:
-        raise NotFoundException("Record not found")
+async def stream_record_media(record_id: uuid.UUID):
+    """SSE 스트리밍으로 스크래핑 진행 상황 + mediaList 반환.
+
+    DB 세션을 Depends로 주입받지 않음 — StreamingResponse가 응답 완료까지
+    세션을 잡아두어 pool exhaustion을 유발하기 때문.
+    대신 짧은 수동 세션으로 레코드를 조회한 뒤 즉시 반환.
+    """
+    from app.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        service = RecordService(db)
+        record = await service.get_record_by_id(record_id)
+        if not record:
+            raise NotFoundException("Record not found")
+        record_snapshot = {
+            "id": record.id,
+            "google_photo_url": record.google_photo_url,
+            "icloud_url": record.icloud_url,
+            "mybox_url": record.mybox_url,
+        }
+    # DB session released here — before streaming begins
 
     async def event_generator():
-        async for event in service.scrape_media_list_stream(record):
+        async for event in RecordService.scrape_media_list_stream_standalone(record_snapshot):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(
