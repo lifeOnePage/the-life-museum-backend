@@ -20,67 +20,39 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # users 테이블에 credits 컬럼 추가
-    op.add_column(
-        "users",
-        sa.Column("credits", sa.Integer(), server_default="0", nullable=False),
-    )
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER NOT NULL DEFAULT 0")
 
     # TxType enum 생성
-    txtype_enum = sa.Enum(
-        "purchase", "album_create", "emoji_buy", "refund", "admin",
-        name="txtype",
+    op.execute(
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'txtype') THEN "
+        "CREATE TYPE txtype AS ENUM "
+        "('purchase', 'album_create', 'emoji_buy', 'refund', 'admin'); "
+        "END IF; "
+        "END $$"
     )
-    txtype_enum.create(op.get_bind(), checkfirst=True)
 
     # credit_transactions 테이블 생성
-    op.create_table(
-        "credit_transactions",
-        sa.Column(
-            "id",
-            sa.UUID(),
-            server_default=sa.text("gen_random_uuid()"),
-            nullable=False,
-        ),
-        sa.Column("user_id", sa.UUID(), nullable=False),
-        sa.Column(
-            "tx_type",
-            sa.Enum(
-                "purchase", "album_create", "emoji_buy", "refund", "admin",
-                name="txtype",
-            ),
-            nullable=False,
-        ),
-        sa.Column("amount", sa.Integer(), nullable=False),
-        sa.Column("balance_after", sa.Integer(), nullable=False),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("reference_id", sa.String(length=255), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_credit_transactions_user_id"),
-        "credit_transactions",
-        ["user_id"],
-        unique=False,
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS credit_transactions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            tx_type txtype NOT NULL,
+            amount INTEGER NOT NULL,
+            balance_after INTEGER NOT NULL,
+            description TEXT,
+            reference_id VARCHAR(255),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_credit_transactions_user_id "
+        "ON credit_transactions (user_id)"
     )
 
 
 def downgrade() -> None:
-    op.drop_index(
-        op.f("ix_credit_transactions_user_id"),
-        table_name="credit_transactions",
-    )
-    op.drop_table("credit_transactions")
-
-    # TxType enum 삭제
-    sa.Enum(name="txtype").drop(op.get_bind(), checkfirst=True)
-
-    op.drop_column("users", "credits")
+    op.execute("DROP INDEX IF EXISTS ix_credit_transactions_user_id")
+    op.execute("DROP TABLE IF EXISTS credit_transactions")
+    op.execute("DROP TYPE IF EXISTS txtype")
+    op.execute("ALTER TABLE users DROP COLUMN IF EXISTS credits")
