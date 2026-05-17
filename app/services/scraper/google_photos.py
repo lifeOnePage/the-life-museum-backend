@@ -173,8 +173,11 @@ class GooglePhotosScraper(BaseScraper):
                 pass
         return (base_url, MediaType.IMAGE)
 
-    async def scrape(self, url: str) -> list[MediaItem]:
+    async def scrape(self, url: str, progress_callback=None) -> list[MediaItem]:
         fetch_url = _ensure_desktop_redirect(url)
+
+        if progress_callback:
+            progress_callback({"step": "fetching_page"})
 
         async with httpx.AsyncClient(
             follow_redirects=True,
@@ -204,6 +207,9 @@ class GooglePhotosScraper(BaseScraper):
 
             if not seen_bases:
                 return []
+
+            if progress_callback:
+                progress_callback({"step": "urls_found", "count": len(seen_bases)})
 
             # Phase 3a: HTML-based video detection (fast, no network)
             html_video_bases = _detect_videos_from_html(html, seen_bases)
@@ -237,11 +243,16 @@ class GooglePhotosScraper(BaseScraper):
                     self._probe_media_type(client, semaphore, b)
                     for b in undetected
                 ]
-                results = await asyncio.gather(*tasks)
-                for base_url, mtype in results:
+                total_probes = len(tasks)
+                for i, coro in enumerate(asyncio.as_completed(tasks)):
+                    base_url, mtype = await coro
                     type_map[base_url] = mtype
+                    if progress_callback:
+                        progress_callback({"step": "probing_media", "current": i + 1, "total": total_probes})
 
         # Phase 4: build MediaItem list
+        if progress_callback:
+            progress_callback({"step": "building_list"})
         media_items: list[MediaItem] = []
         for base, srcs in seen_bases.items():
             media_type = type_map.get(base, MediaType.IMAGE)
