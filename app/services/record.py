@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import queue as thread_queue
 import uuid
 
 from sqlalchemy import select
@@ -239,7 +240,39 @@ class RecordService:
                    "source": provider, "sourceIndex": idx, "totalSources": total}
             try:
                 scraper = scrapers[provider]()
-                media_items = await scraper.scrape(url)
+                progress_q = thread_queue.Queue()
+
+                def progress_cb(event, _q=progress_q):
+                    _q.put(event)
+
+                scrape_task = asyncio.create_task(
+                    scraper.scrape(url, progress_callback=progress_cb)
+                )
+
+                # Poll queue for intermediate progress events while scraping
+                while not scrape_task.done():
+                    await asyncio.sleep(0.2)
+                    while not progress_q.empty():
+                        try:
+                            event = progress_q.get_nowait()
+                            yield {"type": "progress", "phase": "scraping_detail",
+                                   "source": provider, "sourceIndex": idx,
+                                   "totalSources": total, **event}
+                        except thread_queue.Empty:
+                            break
+
+                media_items = scrape_task.result()
+
+                # Drain any remaining events
+                while not progress_q.empty():
+                    try:
+                        event = progress_q.get_nowait()
+                        yield {"type": "progress", "phase": "scraping_detail",
+                               "source": provider, "sourceIndex": idx,
+                               "totalSources": total, **event}
+                    except thread_queue.Empty:
+                        break
+
                 items.extend(media_items)
                 yield {"type": "progress", "phase": "source_done",
                        "source": provider, "sourceIndex": idx, "totalSources": total,

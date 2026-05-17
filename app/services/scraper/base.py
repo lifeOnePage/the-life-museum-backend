@@ -1,10 +1,14 @@
 import os
 from abc import ABC, abstractmethod
+from typing import Callable
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
 from app.schemas.scraper import MediaItem
+
+ProgressCallback = Callable[[dict], None] | None
 
 
 class BaseScraper(ABC):
@@ -41,7 +45,7 @@ class BaseScraper(ABC):
             self.driver = None
 
     @abstractmethod
-    async def scrape(self, url: str) -> list[MediaItem]:
+    async def scrape(self, url: str, progress_callback: ProgressCallback = None) -> list[MediaItem]:
         pass
 
     @staticmethod

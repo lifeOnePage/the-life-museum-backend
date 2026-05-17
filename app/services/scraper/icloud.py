@@ -16,17 +16,23 @@ class ICloudScraper(BaseScraper):
         # iCloud often requires non-headless for proper loading
         super().__init__(headless=False)
 
-    async def scrape(self, url: str) -> list[MediaItem]:
+    async def scrape(self, url: str, progress_callback=None) -> list[MediaItem]:
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
-            return await loop.run_in_executor(executor, self._scrape_sync, url)
+            return await loop.run_in_executor(
+                executor, self._scrape_sync, url, progress_callback
+            )
 
-    def _scrape_sync(self, url: str) -> list[MediaItem]:
+    def _scrape_sync(self, url: str, progress_callback=None) -> list[MediaItem]:
         self._init_driver()
         try:
+            if progress_callback:
+                progress_callback({"step": "page_loading"})
             self.driver.get(url)
             time.sleep(5)
 
+            if progress_callback:
+                progress_callback({"step": "waiting_for_content"})
             # Wait for images to load
             try:
                 WebDriverWait(self.driver, 15).until(
@@ -36,7 +42,7 @@ class ICloudScraper(BaseScraper):
                 pass
 
             # Scroll to load all content
-            self._scroll_page()
+            self._scroll_page(progress_callback=progress_callback)
 
             media_items = []
             seen = set()
@@ -103,16 +109,21 @@ class ICloudScraper(BaseScraper):
                                 )
                             )
 
+            if progress_callback:
+                progress_callback({"step": "collecting_media", "found": len(media_items)})
+
             return media_items
         finally:
             self._quit_driver()
 
-    def _scroll_page(self, max_scrolls: int = 20):
+    def _scroll_page(self, max_scrolls: int = 20, progress_callback=None):
         last_height = self.driver.execute_script("return document.body.scrollHeight")
-        for _ in range(max_scrolls):
+        for i in range(max_scrolls):
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(1.5)
             new_height = self.driver.execute_script("return document.body.scrollHeight")
+            if progress_callback:
+                progress_callback({"step": "scrolling", "current": i + 1, "total": max_scrolls})
             if new_height == last_height:
                 break
             last_height = new_height
