@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Integer,
     String,
     Text,
     Enum as SQLEnum,
@@ -68,6 +69,11 @@ class User(Base):
 
     # 구독 플랜
     plan: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+    # 크레딧
+    credits: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
 
     # 관계: User(1) - OAuthAccount(N)
     oauth_accounts: Mapped[List["OAuthAccount"]] = relationship(

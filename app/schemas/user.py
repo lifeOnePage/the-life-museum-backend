@@ -25,6 +25,7 @@ class UserResponse(UserBase):
     profile_image: str | None = None
     is_active: bool
     is_verified: bool
+    credits: int = 0
     created_at: datetime
 
     class Config:
