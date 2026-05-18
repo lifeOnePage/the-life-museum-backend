@@ -45,7 +45,8 @@ class Payment(Base):
     amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
     currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
     status: Mapped[PaymentStatus] = mapped_column(
-        SQLEnum(PaymentStatus), nullable=False
+        SQLEnum(PaymentStatus, values_callable=lambda e: [x.value for x in e], create_type=False),
+        nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

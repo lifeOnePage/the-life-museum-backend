@@ -41,7 +41,10 @@ class CreditTransaction(Base):
         nullable=False,
         index=True,
     )
-    tx_type: Mapped[TxType] = mapped_column(SQLEnum(TxType), nullable=False)
+    tx_type: Mapped[TxType] = mapped_column(
+        SQLEnum(TxType, values_callable=lambda e: [x.value for x in e], create_type=False),
+        nullable=False,
+    )
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
     balance_after: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
