@@ -36,6 +36,9 @@ openai
 # Google Gemini
 google-genai
 
+# Payment
+stripe
+
 # Cloud Storage (Cloudflare R2)
 boto3
 
