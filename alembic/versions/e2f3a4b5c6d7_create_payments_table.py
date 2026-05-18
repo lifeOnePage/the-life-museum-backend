@@ -1,6 +1,6 @@
 """create payments table
 
-Revision ID: d1e2f3a4b5c6
+Revision ID: e2f3a4b5c6d7
 Revises: c9d0e1f2a3b4
 Create Date: 2026-05-18 14:00:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "d1e2f3a4b5c6"
+revision: str = "e2f3a4b5c6d7"
 down_revision: Union[str, None] = "c9d0e1f2a3b4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
