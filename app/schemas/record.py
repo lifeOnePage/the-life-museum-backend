@@ -46,6 +46,7 @@ class RecordUpdate(BaseModel):
     bgColor: HexColor = None
     keyColor: HexColor = None
     theme: str | None = None
+    exhibitionType: str | None = None
     coverTitleVisible: bool | None = None
     coverTitlePosition: str | None = None
     coverTitleFont: str | None = None
@@ -74,6 +75,7 @@ class RecordResponse(BaseModel):
     bgColor: str | None = None
     keyColor: str | None = None
     theme: str | None = None
+    exhibitionType: str = "walk"
     coverTitleVisible: bool = True
     coverTitlePosition: str = "center-center"
     coverTitleFont: str | None = None
@@ -123,6 +125,7 @@ class RecordDetailResponse(BaseModel):
     bgColor: str | None = None
     keyColor: str | None = None
     theme: str | None = None
+    exhibitionType: str = "walk"
     coverTitleVisible: bool = True
     coverTitlePosition: str = "center-center"
     coverTitleFont: str | None = None
@@ -209,6 +212,7 @@ class RecordListItem(BaseModel):
     color: str | None = None
     keyColor: str | None = None
     theme: str | None = None
+    exhibitionType: str = "walk"
     coverTitleVisible: bool = True
     coverTitlePosition: str = "center-center"
     coverTitleFont: str | None = None

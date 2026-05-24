@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
@@ -7,6 +8,7 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Enum as SQLEnum,
     ForeignKey,
     Integer,
     String,
@@ -18,6 +20,11 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+
+class ExhibitionType(str, enum.Enum):
+    WALK = "walk"
+    MEMORIAL_TAPE = "memorial_tape"
 
 if TYPE_CHECKING:
     from app.models.cover_image import CoverImage
@@ -64,7 +71,18 @@ class Record(Base):
 
     # 테마
     theme: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    
+
+    # 전시 타입 (walk: 3D 복도, memorial_tape: VHS 테이프)
+    exhibition_type: Mapped[str] = mapped_column(
+        SQLEnum(
+            ExhibitionType,
+            values_callable=lambda e: [x.value for x in e],
+            create_type=False,
+        ),
+        nullable=False,
+        server_default=text("'walk'"),
+    )
+
     # 뒷면 이미지 소스
     back_cover_image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
