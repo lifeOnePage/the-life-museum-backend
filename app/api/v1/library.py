@@ -35,6 +35,7 @@ async def get_record_list(
             color=r.color,
             keyColor=r.key_color,
             theme=r.theme,
+            exhibitionType=r.exhibition_type,
             coverTitleVisible=r.cover_title_visible,
             coverTitlePosition=r.cover_title_position,
             coverTitleFont=r.cover_title_font,
