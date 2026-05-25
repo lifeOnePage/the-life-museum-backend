@@ -1,6 +1,5 @@
 import logging
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import Response
 from starlette.responses import StreamingResponse
 import httpx
 
@@ -68,47 +67,36 @@ async def proxy_image(
     url: str = Query(..., description="Media URL to proxy"),
 ):
     try:
-        # First, resolve the final URL and get content info with a HEAD-like GET
-        async with httpx.AsyncClient(
-            follow_redirects=True,
-            timeout=30.0,
-        ) as client:
-            # Check if browser sent a Range header
-            range_header = request.headers.get("range")
+        client: httpx.AsyncClient = request.app.state.http_client
+        range_header = request.headers.get("range")
+        req_headers = {"Range": range_header} if range_header else {}
 
-            # For range requests (video seeking), fetch with Range pass-through
-            if range_header:
-                headers = {"Range": range_header}
-                resp = await client.get(url, headers=headers)
-                content_type = resp.headers.get("content-type", "application/octet-stream")
-                resp_headers = {
-                    "Accept-Ranges": "bytes",
-                    "Content-Type": content_type,
-                }
-                if "content-range" in resp.headers:
-                    resp_headers["Content-Range"] = resp.headers["content-range"]
-                if "content-length" in resp.headers:
-                    resp_headers["Content-Length"] = resp.headers["content-length"]
-                return Response(
-                    content=resp.content,
-                    status_code=resp.status_code,  # 206 Partial Content
-                    headers=resp_headers,
-                )
+        resp = await client.send(
+            client.build_request("GET", url, headers=req_headers),
+            stream=True,
+        )
 
-            # Non-range request: fetch full content
-            resp = await client.get(url)
+        async def generate():
+            try:
+                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                    yield chunk
+            finally:
+                await resp.aclose()
 
-            if resp.status_code != 200:
-                logger.warning("Upstream %s for %s", resp.status_code, url[:120])
-                return Response(status_code=resp.status_code, content=b"Upstream error")
+        res_headers = {
+            "Content-Type": resp.headers.get("content-type", "application/octet-stream"),
+            "Accept-Ranges": "bytes",
+        }
+        if "content-range" in resp.headers:
+            res_headers["Content-Range"] = resp.headers["content-range"]
+        if "content-length" in resp.headers:
+            res_headers["Content-Length"] = resp.headers["content-length"]
 
-            content_type = resp.headers.get("content-type", "image/jpeg")
-            resp_headers = {"Accept-Ranges": "bytes"}
-            return Response(
-                content=resp.content,
-                media_type=content_type,
-                headers=resp_headers,
-            )
+        return StreamingResponse(
+            generate(),
+            status_code=resp.status_code,
+            headers=res_headers,
+        )
     except httpx.TimeoutException:
         logger.warning("Timeout fetching %s", url[:120])
         raise ScraperException("Media fetch timed out")
