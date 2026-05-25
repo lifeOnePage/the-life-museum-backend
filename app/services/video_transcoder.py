@@ -42,7 +42,7 @@ async def _download_video(url: str, dest: Path) -> int:
             resp.raise_for_status()
             total = 0
             with open(dest, "wb") as f:
-                async for chunk in resp.aiter_bytes(chunk_size=4096):
+                async for chunk in resp.aiter_bytes(chunk_size=512):
                     f.write(chunk)
                     total += len(chunk)
     return total
