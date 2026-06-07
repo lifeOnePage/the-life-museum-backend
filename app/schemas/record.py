@@ -58,6 +58,10 @@ class RecordUpdate(BaseModel):
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
     backCoverImageUrl: str | None = None
+    recordType: str | None = None
+    vhsFilter: str | None = None
+    vhsTransition: str | None = None
+    vhsPhotoFrameIndex: int | None = None
 
 
 class PublicUpdateRequest(BaseModel):
@@ -87,6 +91,10 @@ class RecordResponse(BaseModel):
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
     backCoverImageUrl: str | None = None
+    recordType: str = "exhibit"
+    vhsFilter: str | None = None
+    vhsTransition: str | None = None
+    vhsPhotoFrameIndex: int | None = None
     coverImage: CoverImageInfo | None = None
     createdAt: datetime
     updatedAt: datetime
@@ -137,6 +145,10 @@ class RecordDetailResponse(BaseModel):
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
     backCoverImageUrl: str | None = None
+    recordType: str = "exhibit"
+    vhsFilter: str | None = None
+    vhsTransition: str | None = None
+    vhsPhotoFrameIndex: int | None = None
     coverGenCount: int = 0
     storyGenCount: int = 0
     coverImage: CoverImageInfo | None = None
@@ -224,6 +236,10 @@ class RecordListItem(BaseModel):
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
     backCoverImageUrl: str | None = None
+    recordType: str = "exhibit"
+    vhsFilter: str | None = None
+    vhsTransition: str | None = None
+    vhsPhotoFrameIndex: int | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
     role: Literal["owner", "shared"] = "owner"

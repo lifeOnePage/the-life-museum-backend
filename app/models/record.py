@@ -109,6 +109,11 @@ class Record(Base):
       Text, nullable=True
     )
 
+    # VHS 설정
+    vhs_filter: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    vhs_transition: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    vhs_photo_frame_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     # 공개 여부
     is_public: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
