@@ -1,12 +1,16 @@
 import re
 import time
+import uuid
+import base64
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
+import boto3
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from app.config import settings
 from app.services.scraper.base import BaseScraper
 from app.schemas.scraper import MediaItem, MediaType
 
@@ -15,6 +19,36 @@ class ICloudScraper(BaseScraper):
     def __init__(self, headless: bool = True):
         # iCloud often requires non-headless for proper loading
         super().__init__(headless=False)
+        self._s3 = None
+
+    def _get_s3_client(self):
+        if self._s3 is None:
+            self._s3 = boto3.client(
+                "s3",
+                endpoint_url=f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+                aws_access_key_id=settings.R2_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+                region_name="auto",
+            )
+        return self._s3
+
+    def _upload_blob_to_r2(self, blob_url: str) -> str | None:
+        data_url = self._convert_blob_to_data_url(blob_url)
+        if not data_url:
+            return None
+        match = re.match(r'data:image/(\w+);base64,(.+)', data_url)
+        if not match:
+            return None
+        ext = match.group(1).replace('jpeg', 'jpg')
+        image_bytes = base64.b64decode(match.group(2))
+        key = f"icloud/{uuid.uuid4()}.{ext}"
+        self._get_s3_client().put_object(
+            Bucket=settings.R2_BUCKET_NAME,
+            Key=key,
+            Body=image_bytes,
+            ContentType=f"image/{match.group(1)}",
+        )
+        return f"{settings.R2_PUBLIC_URL}/{key}"
 
     async def scrape(self, url: str, progress_callback=None) -> list[MediaItem]:
         loop = asyncio.get_event_loop()
@@ -57,15 +91,14 @@ class ICloudScraper(BaseScraper):
                 if "icloud-content.com" in src or src.startswith("blob:"):
                     if src not in seen:
                         seen.add(src)
-                        # For blob URLs, we need to convert them
                         if src.startswith("blob:"):
-                            original_url = self._convert_blob_to_data_url(src)
-                            if original_url:
+                            r2_url = self._upload_blob_to_r2(src)
+                            if r2_url:
                                 media_items.append(
                                     MediaItem(
                                         type=MediaType.IMAGE,
-                                        thumbnail_url=src,
-                                        original_url=original_url,
+                                        thumbnail_url=r2_url,
+                                        original_url=r2_url,
                                     )
                                 )
                         else:
@@ -91,13 +124,13 @@ class ICloudScraper(BaseScraper):
                     if ("icloud-content.com" in u or u.startswith("blob:")) and u not in seen:
                         seen.add(u)
                         if u.startswith("blob:"):
-                            original_url = self._convert_blob_to_data_url(u)
-                            if original_url:
+                            r2_url = self._upload_blob_to_r2(u)
+                            if r2_url:
                                 media_items.append(
                                     MediaItem(
                                         type=MediaType.IMAGE,
-                                        thumbnail_url=u,
-                                        original_url=original_url,
+                                        thumbnail_url=r2_url,
+                                        original_url=r2_url,
                                     )
                                 )
                         else:
