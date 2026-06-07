@@ -13,6 +13,7 @@ from app.schemas.record import (
     EventItem,
 )
 from app.services.record import RecordService
+from app.api.v1.record import _to_record_type
 
 router = APIRouter()
 
@@ -47,6 +48,10 @@ async def get_record_list(
             externalLinkTitle=r.external_link_title,
             externalLinkUrl=r.external_link_url,
             backCoverImageUrl=r.back_cover_image_url,
+            recordType=_to_record_type(r.exhibition_type),
+            vhsFilter=r.vhs_filter,
+            vhsTransition=r.vhs_transition,
+            vhsPhotoFrameIndex=r.vhs_photo_frame_index,
             role=role,
             lifestory=LifestorySummary(
                 mood=r.lifestory.mood,

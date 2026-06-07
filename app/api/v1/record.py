@@ -48,6 +48,14 @@ from app.core.exceptions import ForbiddenException, NotFoundException
 
 router = APIRouter()
 
+# Map frontend recordType values to/from DB exhibition_type enum values
+_RECORD_TYPE_TO_DB = {"exhibit": "walk", "retro_tape": "memorial_tape"}
+_DB_TO_RECORD_TYPE = {v: k for k, v in _RECORD_TYPE_TO_DB.items()}
+
+
+def _to_record_type(exhibition_type: str) -> str:
+    return _DB_TO_RECORD_TYPE.get(exhibition_type, "exhibit")
+
 
 @router.post("", response_model=ApiResponse)
 async def create_record(
@@ -101,6 +109,10 @@ async def create_record(
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
         backCoverImageUrl=record.back_cover_image_url,
+        recordType=_to_record_type(record.exhibition_type),
+        vhsFilter=record.vhs_filter,
+        vhsTransition=record.vhs_transition,
+        vhsPhotoFrameIndex=record.vhs_photo_frame_index,
         coverImage=CoverImageInfo(url=record.cover_image.url) if record.cover_image else None,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
@@ -152,12 +164,19 @@ async def update_record(
         "externalLinkTitle": "external_link_title",
         "externalLinkUrl": "external_link_url",
         "backCoverImageUrl": "back_cover_image_url",
+        "vhsFilter": "vhs_filter",
+        "vhsTransition": "vhs_transition",
+        "vhsPhotoFrameIndex": "vhs_photo_frame_index",
     }
     update_data = {}
     for schema_field, model_field in field_mapping.items():
         value = getattr(body, schema_field, None)
         if value is not None:
             update_data[model_field] = value
+
+    # Convert frontend recordType to DB exhibition_type enum value
+    if body.recordType is not None:
+        update_data["exhibition_type"] = _RECORD_TYPE_TO_DB.get(body.recordType, "walk")
 
     # Detect Google Photos URL change for pre-transcoding
     old_google_url = record.google_photo_url
@@ -191,6 +210,10 @@ async def update_record(
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
         backCoverImageUrl=record.back_cover_image_url,
+        recordType=_to_record_type(record.exhibition_type),
+        vhsFilter=record.vhs_filter,
+        vhsTransition=record.vhs_transition,
+        vhsPhotoFrameIndex=record.vhs_photo_frame_index,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -323,6 +346,10 @@ async def get_record(
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
         backCoverImageUrl=record.back_cover_image_url,
+        recordType=_to_record_type(record.exhibition_type),
+        vhsFilter=record.vhs_filter,
+        vhsTransition=record.vhs_transition,
+        vhsPhotoFrameIndex=record.vhs_photo_frame_index,
         coverGenCount=record.cover_gen_count,
         storyGenCount=record.story_gen_count,
         coverImage=cover_image,
@@ -956,6 +983,10 @@ async def add_shared_record(
         bgmId=record.bgm_id,
         bgmUrl=record.bgm_url,
         backCoverImageUrl=record.back_cover_image_url,
+        recordType=_to_record_type(record.exhibition_type),
+        vhsFilter=record.vhs_filter,
+        vhsTransition=record.vhs_transition,
+        vhsPhotoFrameIndex=record.vhs_photo_frame_index,
         role="shared",
         lifestory=LifestorySummary(
             mood=record.lifestory.mood,

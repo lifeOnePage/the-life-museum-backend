@@ -86,6 +86,7 @@ async def proxy_image(
         res_headers = {
             "Content-Type": resp.headers.get("content-type", "application/octet-stream"),
             "Accept-Ranges": "bytes",
+            "X-Accel-Buffering": "no",
         }
         if "content-range" in resp.headers:
             res_headers["Content-Range"] = resp.headers["content-range"]
