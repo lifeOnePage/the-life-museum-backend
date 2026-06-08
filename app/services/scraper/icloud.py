@@ -63,84 +63,25 @@ class ICloudScraper(BaseScraper):
             if progress_callback:
                 progress_callback({"step": "page_loading"})
             self.driver.get(url)
-            time.sleep(5)
+            time.sleep(8)
 
             if progress_callback:
                 progress_callback({"step": "waiting_for_content"})
-            # Wait for images to load
+            # Wait for the first photo group to render
             try:
-                WebDriverWait(self.driver, 15).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "img"))
+                WebDriverWait(self.driver, 20).until(
+                    EC.presence_of_element_located(
+                        (By.CSS_SELECTOR, ".x-stream-photo-group-view")
+                    )
                 )
             except Exception:
                 pass
 
-            # Scroll to load all content
-            self._scroll_page(progress_callback=progress_callback)
-
+            # Scroll each group into view and collect images immediately
+            # (iCloud virtualizes DOM — images are removed when scrolled away)
             media_items = []
             seen = set()
-
-            # Collect from img tags
-            img_elements = self.driver.find_elements(By.TAG_NAME, "img")
-            for img in img_elements:
-                src = img.get_attribute("src") or ""
-                if not src:
-                    continue
-
-                if "icloud-content.com" in src or src.startswith("blob:"):
-                    if src not in seen:
-                        seen.add(src)
-                        if src.startswith("blob:"):
-                            r2_url = self._upload_blob_to_r2(src)
-                            if r2_url:
-                                media_items.append(
-                                    MediaItem(
-                                        type=MediaType.IMAGE,
-                                        thumbnail_url=r2_url,
-                                        original_url=r2_url,
-                                    )
-                                )
-                        else:
-                            media_items.append(
-                                MediaItem(
-                                    type=MediaType.IMAGE,
-                                    thumbnail_url=src,
-                                    original_url=src,
-                                )
-                            )
-
-            # Collect from background images
-            bg_elements = self.driver.find_elements(By.XPATH, "//*[@style]")
-            for el in bg_elements:
-                style = el.get_attribute("style") or ""
-                if "background-image" not in style:
-                    continue
-                urls = re.findall(
-                    r'url\(["\']?(blob:[^"\')\s]+|https?://[^"\')\s]+)["\']?\)',
-                    style,
-                )
-                for u in urls:
-                    if ("icloud-content.com" in u or u.startswith("blob:")) and u not in seen:
-                        seen.add(u)
-                        if u.startswith("blob:"):
-                            r2_url = self._upload_blob_to_r2(u)
-                            if r2_url:
-                                media_items.append(
-                                    MediaItem(
-                                        type=MediaType.IMAGE,
-                                        thumbnail_url=r2_url,
-                                        original_url=r2_url,
-                                    )
-                                )
-                        else:
-                            media_items.append(
-                                MediaItem(
-                                    type=MediaType.IMAGE,
-                                    thumbnail_url=u,
-                                    original_url=u,
-                                )
-                            )
+            self._scroll_and_collect(media_items, seen, progress_callback)
 
             if progress_callback:
                 progress_callback({"step": "collecting_media", "found": len(media_items)})
@@ -149,17 +90,74 @@ class ICloudScraper(BaseScraper):
         finally:
             self._quit_driver()
 
-    def _scroll_page(self, max_scrolls: int = 20, progress_callback=None):
-        last_height = self.driver.execute_script("return document.body.scrollHeight")
-        for i in range(max_scrolls):
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(1.5)
-            new_height = self.driver.execute_script("return document.body.scrollHeight")
+    def _resolve_image_url(self, src: str) -> str | None:
+        """Convert blob URL to R2 URL, or return CDN URL as-is."""
+        if src.startswith("blob:"):
+            return self._upload_blob_to_r2(src)
+        return src
+
+    def _collect_visible_images(self, container, media_items: list, seen: set):
+        """Collect iCloud content images from a visible DOM container."""
+        imgs = container.find_elements(By.TAG_NAME, "img")
+        for img in imgs:
+            src = img.get_attribute("src") or ""
+            if not src:
+                continue
+            if ("icloud-content.com" in src or src.startswith("blob:")) and src not in seen:
+                seen.add(src)
+                url = self._resolve_image_url(src)
+                if url:
+                    media_items.append(
+                        MediaItem(type=MediaType.IMAGE, thumbnail_url=url, original_url=url)
+                    )
+
+    def _scroll_and_collect(self, media_items: list, seen: set, progress_callback=None):
+        """Two-phase scroll: activate each group, then collect from each item.
+
+        iCloud virtualizes the DOM at two levels:
+        1. Group blocks with class 'not-visible' have no child grid items
+        2. Grid items only render <img> tags when scrolled into view
+        """
+        groups = self.driver.find_elements(
+            By.CSS_SELECTOR, ".x-stream-photo-group-block-view"
+        )
+        # Process in reverse order (bottom→top) so large grid groups
+        # are handled first, before iCloud's image view recycling
+        # interferes with smaller groups loaded earlier.
+        for gi in reversed(range(len(groups))):
+            group = groups[gi]
+            # Activate group
+            self.driver.execute_script(
+                "arguments[0].scrollIntoView({behavior:'instant',block:'start'});",
+                group,
+            )
+            time.sleep(3)
+            for _ in range(10):
+                if "not-visible" not in (group.get_attribute("class") or ""):
+                    break
+                time.sleep(0.5)
+
+            # Scroll each grid item into center and collect
+            items = group.find_elements(
+                By.CSS_SELECTOR, ".x-stream-photo-grid-item-view"
+            )
+            for item in items:
+                self.driver.execute_script(
+                    "arguments[0].scrollIntoView({behavior:'instant',block:'center'});",
+                    item,
+                )
+                for _ in range(8):
+                    if item.find_elements(By.TAG_NAME, "img"):
+                        break
+                    time.sleep(0.5)
+                self._collect_visible_images(item, media_items, seen)
+
             if progress_callback:
-                progress_callback({"step": "scrolling", "current": i + 1, "total": max_scrolls})
-            if new_height == last_height:
-                break
-            last_height = new_height
+                progress_callback({
+                    "step": "scrolling",
+                    "current": len(groups) - gi,
+                    "total": len(groups),
+                })
 
     def _convert_blob_to_data_url(self, blob_url: str) -> str | None:
         script = """
