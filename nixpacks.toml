@@ -6,4 +6,4 @@ nixLibs = ["zlib"]
 cmds = ["pip install -r requirements.txt"]
 
 [start]
-cmd = "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+cmd = "export CHROMEDRIVER_PATH=$(which chromedriver 2>/dev/null) && export CHROMIUM_BIN=$(which chromium 2>/dev/null) && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
