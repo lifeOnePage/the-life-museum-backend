@@ -1,4 +1,5 @@
 import os
+import shutil
 from abc import ABC, abstractmethod
 from typing import Callable
 
@@ -12,10 +13,20 @@ ProgressCallback = Callable[[dict], None] | None
 
 
 class BaseScraper(ABC):
-    # 직접 chromedriver 경로 지정
-    CHROMEDRIVER_PATH = os.path.expanduser(
-        "~/.wdm/drivers/chromedriver/mac64/144.0.7559.133/chromedriver-mac-arm64/chromedriver"
-    )
+    @staticmethod
+    def _find_chromedriver() -> str | None:
+        """Find chromedriver: system PATH first, then local macOS fallback."""
+        # 1. System PATH (works on Linux/Railway with nixpacks chromium)
+        system = shutil.which("chromedriver")
+        if system:
+            return system
+        # 2. Local macOS fallback (webdriver-manager cache)
+        local = os.path.expanduser(
+            "~/.wdm/drivers/chromedriver/mac64/148.0.7778.178/chromedriver-mac-arm64/chromedriver"
+        )
+        if os.path.isfile(local):
+            return local
+        return None
 
     def __init__(self, headless: bool = True):
         self.headless = headless
@@ -33,10 +44,18 @@ class BaseScraper(ABC):
             "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
+        # Chromium binary from nixpkgs (if available)
+        chromium_bin = shutil.which("chromium")
+        if chromium_bin:
+            options.binary_location = chromium_bin
         return options
 
     def _init_driver(self):
-        service = Service(self.CHROMEDRIVER_PATH)
+        chromedriver_path = self._find_chromedriver()
+        if chromedriver_path:
+            service = Service(chromedriver_path)
+        else:
+            service = Service()  # let selenium find it
         self.driver = webdriver.Chrome(service=service, options=self._get_chrome_options())
 
     def _quit_driver(self):
