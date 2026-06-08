@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
 ENV CHROMIUM_BIN=/usr/bin/chromium
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
+# Ensure Python output is not buffered (logs visible immediately)
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 COPY requirements.txt .
