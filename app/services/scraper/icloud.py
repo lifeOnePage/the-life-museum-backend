@@ -17,8 +17,7 @@ from app.schemas.scraper import MediaItem, MediaType
 
 class ICloudScraper(BaseScraper):
     def __init__(self, headless: bool = True):
-        # iCloud often requires non-headless for proper loading
-        super().__init__(headless=False)
+        super().__init__(headless=headless)
         self._s3 = None
 
     def _get_s3_client(self):
