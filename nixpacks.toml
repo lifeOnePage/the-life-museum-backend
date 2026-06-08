@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python311", "gcc", "postgresql", "ffmpeg"]
+nixPkgs = ["python311", "gcc", "postgresql", "ffmpeg", "chromium", "chromedriver"]
 nixLibs = ["zlib"]
 
 [phases.install]
