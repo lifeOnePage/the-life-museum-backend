@@ -33,6 +33,9 @@ from app.api.deps import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+REVIEW_EMAIL = "review@apple-test.com"
+REVIEW_CODE = "000000"
+
 
 def _build_auth_response(user: User, is_new_user: bool) -> AuthResponse:
     return AuthResponse(
@@ -140,6 +143,9 @@ async def verify_phone(
 async def send_email_verification(
     data: EmailVerificationRequest, db: AsyncSession = Depends(get_db)
 ):
+    if data.email == REVIEW_EMAIL:
+        return success_response(message="Verification code sent")
+
     t_total = time.time()
     email_service = get_email_service()
     auth_service = AuthService(db)
@@ -162,6 +168,11 @@ async def send_email_verification(
 async def verify_email(
     data: EmailVerificationConfirm, db: AsyncSession = Depends(get_db)
 ):
+    if data.email == REVIEW_EMAIL and data.code == REVIEW_CODE:
+        auth_service = AuthService(db)
+        user, is_new_user = await auth_service.get_or_create_user_by_email(data.email)
+        return success_response(_build_auth_response(user, is_new_user))
+
     t_total = time.time()
     auth_service = AuthService(db)
 
