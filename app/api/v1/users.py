@@ -36,6 +36,6 @@ async def delete_current_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    current_user.is_active = False
+    await db.delete(current_user)
     await db.commit()
-    return {"message": "User deactivated successfully"}
+    return {"message": "User deleted successfully"}
