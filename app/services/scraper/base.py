@@ -141,7 +141,9 @@ class BaseScraper(ABC):
     @staticmethod
     def detect_provider(url: str) -> str | None:
         url_lower = url.lower()
-        if "photos.google.com" in url_lower or "photos.app.goo.gl" in url_lower:
+        if "drive.google.com" in url_lower:
+            return "google_drive"
+        elif "photos.google.com" in url_lower or "photos.app.goo.gl" in url_lower:
             return "google_photos"
         elif "icloud.com" in url_lower:
             return "icloud"

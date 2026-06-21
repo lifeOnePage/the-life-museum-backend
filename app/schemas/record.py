@@ -32,6 +32,7 @@ class RecordCreate(BaseModel):
     title: str | None = None
     subTitle: str | None = None
     googlePhotoUrl: str | None = None
+    googleDriveUrl: str | None = None
     icloudUrl: str | None = None
     myboxUrl: str | None = None
 
@@ -40,6 +41,7 @@ class RecordUpdate(BaseModel):
     title: str | None = None
     subTitle: str | None = None
     googlePhotoUrl: str | None = None
+    googleDriveUrl: str | None = None
     icloudUrl: str | None = None
     myboxUrl: str | None = None
     color: HexColor = None
@@ -73,6 +75,7 @@ class RecordResponse(BaseModel):
     title: str
     subtitle: str | None = None
     googlePhotoUrl: str | None = None
+    googleDriveUrl: str | None = None
     icloudUrl: str | None = None
     myboxUrl: str | None = None
     color: str | None = None
@@ -127,6 +130,7 @@ class RecordDetailResponse(BaseModel):
     title: str
     subtitle: str | None = None
     googlePhotoUrl: str | None = None
+    googleDriveUrl: str | None = None
     icloudUrl: str | None = None
     myboxUrl: str | None = None
     color: str | None = None

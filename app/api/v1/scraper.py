@@ -4,7 +4,13 @@ from starlette.responses import StreamingResponse
 import httpx
 
 from app.schemas.scraper import ScraperRequest, ScraperResponse
-from app.services.scraper import BaseScraper, GooglePhotosScraper, ICloudScraper, MyBoxScraper
+from app.services.scraper import (
+    BaseScraper,
+    GoogleDriveScraper,
+    GooglePhotosScraper,
+    ICloudScraper,
+    MyBoxScraper,
+)
 from app.core.exceptions import BadRequestException, ScraperException
 
 logger = logging.getLogger(__name__)
@@ -14,6 +20,7 @@ router = APIRouter()
 
 def get_scraper(provider: str) -> BaseScraper:
     scrapers = {
+        "google_drive": GoogleDriveScraper,
         "google_photos": GooglePhotosScraper,
         "icloud": ICloudScraper,
         "mybox": MyBoxScraper,
@@ -31,7 +38,7 @@ async def scrape_media(request: ScraperRequest):
 
     if not provider:
         raise BadRequestException(
-            "Unable to detect provider. Supported: Google Photos, iCloud, Naver MyBox"
+            "Unable to detect provider. Supported: Google Drive, Google Photos, iCloud, Naver MyBox"
         )
 
     try:

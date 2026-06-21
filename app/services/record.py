@@ -14,7 +14,12 @@ from app.models.timeline import Timeline, Event
 from app.models.cover_image import CoverImage
 from app.models.video_cache import VideoCache
 from app.schemas.scraper import MediaItem, MediaType
-from app.services.scraper import GooglePhotosScraper, ICloudScraper, MyBoxScraper
+from app.services.scraper import (
+    GoogleDriveScraper,
+    GooglePhotosScraper,
+    ICloudScraper,
+    MyBoxScraper,
+)
 from app.services.google_photos_api import GooglePhotosAPI, AlbumMetadata
 from app.services.video_transcoder import (
     VideoTranscoderService,
@@ -36,6 +41,7 @@ class RecordService:
         title: str,
         subtitle: str | None,
         google_photo_url: str | None,
+        google_drive_url: str | None,
         icloud_url: str | None,
         mybox_url: str | None,
     ) -> Record:
@@ -54,6 +60,7 @@ class RecordService:
             title=title,
             subtitle=subtitle,
             google_photo_url=google_photo_url,
+            google_drive_url=google_drive_url,
             icloud_url=icloud_url,
             mybox_url=mybox_url,
         )
@@ -178,12 +185,14 @@ class RecordService:
         items: list[MediaItem] = []
         source_urls = [
             ("google_photos", record.google_photo_url),
+            ("google_drive", record.google_drive_url),
             ("icloud", record.icloud_url),
             ("mybox", record.mybox_url),
         ]
 
         scrapers = {
             "google_photos": GooglePhotosScraper,
+            "google_drive": GoogleDriveScraper,
             "icloud": ICloudScraper,
             "mybox": MyBoxScraper,
         }
@@ -212,7 +221,7 @@ class RecordService:
         """
         SSE로 스크래핑 진행 상황 스트리밍 (DB 세션 미사용).
 
-        record_snapshot: {"id", "google_photo_url", "icloud_url", "mybox_url"}
+        record_snapshot: {"id", "google_photo_url", "google_drive_url", "icloud_url", "mybox_url"}
         스크래핑은 외부 HTTP 요청만 수행하므로 DB 불필요.
         _apply_video_cache만 별도 세션을 짧게 열어 처리.
         """
@@ -221,11 +230,13 @@ class RecordService:
         items: list[MediaItem] = []
         source_urls = [
             ("google_photos", record_snapshot["google_photo_url"]),
+            ("google_drive", record_snapshot["google_drive_url"]),
             ("icloud", record_snapshot["icloud_url"]),
             ("mybox", record_snapshot["mybox_url"]),
         ]
         scrapers = {
             "google_photos": GooglePhotosScraper,
+            "google_drive": GoogleDriveScraper,
             "icloud": ICloudScraper,
             "mybox": MyBoxScraper,
         }
