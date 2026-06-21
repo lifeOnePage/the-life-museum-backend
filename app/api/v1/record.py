@@ -80,6 +80,7 @@ async def create_record(
         title=body.title or "",
         subtitle=body.subTitle,
         google_photo_url=body.googlePhotoUrl,
+        google_drive_url=body.googleDriveUrl,
         icloud_url=body.icloudUrl,
         mybox_url=body.myboxUrl,
     )
@@ -92,6 +93,7 @@ async def create_record(
         title=record.title,
         subtitle=record.subtitle,
         googlePhotoUrl=record.google_photo_url,
+        googleDriveUrl=record.google_drive_url,
         icloudUrl=record.icloud_url,
         myboxUrl=record.mybox_url,
         color=record.color,
@@ -146,6 +148,7 @@ async def update_record(
         "title": "title",
         "subTitle": "subtitle",
         "googlePhotoUrl": "google_photo_url",
+        "googleDriveUrl": "google_drive_url",
         "icloudUrl": "icloud_url",
         "myboxUrl": "mybox_url",
         "color": "color",
@@ -192,6 +195,7 @@ async def update_record(
         title=record.title,
         subtitle=record.subtitle,
         googlePhotoUrl=record.google_photo_url,
+        googleDriveUrl=record.google_drive_url,
         icloudUrl=record.icloud_url,
         myboxUrl=record.mybox_url,
         color=record.color,
@@ -328,6 +332,7 @@ async def get_record(
         title=record.title,
         subtitle=record.subtitle,
         googlePhotoUrl=record.google_photo_url,
+        googleDriveUrl=record.google_drive_url,
         icloudUrl=record.icloud_url,
         myboxUrl=record.mybox_url,
         color=record.color,
@@ -395,6 +400,7 @@ async def stream_record_media(record_id: uuid.UUID):
         record_snapshot = {
             "id": record.id,
             "google_photo_url": record.google_photo_url,
+            "google_drive_url": record.google_drive_url,
             "icloud_url": record.icloud_url,
             "mybox_url": record.mybox_url,
         }

@@ -131,6 +131,7 @@ class Record(Base):
 
     # 외부 저장소 URL
     google_photo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    google_drive_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     icloud_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     mybox_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     public_access_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
