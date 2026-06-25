@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     PORTONE_API_KEY: str = ""
     PORTONE_API_SECRET: str = ""
 
+    # Admin
+    ADMIN_EMAILS: str = "goodchaeee@naver.com,goodchaeee@gmail.com,akea1027th@gmail.com,byul88byul@gmail.com,jusub@sogang.ac.kr,showyourmind@gmail.com"
+
     # Dev
     DEV_AUTH_KEY: str = ""
 

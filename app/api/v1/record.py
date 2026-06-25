@@ -39,7 +39,7 @@ from app.schemas.record import (
     PublicUpdateRequest,
 )
 from app.services.record import RecordService
-from app.services.credit import CreditService, InsufficientCreditsError
+from app.services.credit import CreditService, InsufficientCreditsError, ADMIN_EMAILS
 from app.services.openai import OpenAIService
 from app.services.gemini import GeminiService
 from app.services.mindlogic_image import MindlogicImageService
@@ -277,7 +277,9 @@ async def increment_story_gen_count(
     if not is_owner:
         raise ForbiddenException("Only the owner can update this record")
 
-    if record.story_gen_count >= 3:
+    is_admin = current_user.email and current_user.email in ADMIN_EMAILS
+
+    if not is_admin and record.story_gen_count >= 3:
         raise HTTPException(
             status_code=400,
             detail="생애문 생성 횟수가 초과되었습니다 (최대 3회)",
@@ -798,7 +800,7 @@ async def generate_cover_image(
     style: str = Form(...),
     reference_image: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Generate a cover image using Gemini (via OpenAIService), upload to R2, return URL."""
     style_config = COVER_STYLE_PROMPTS.get(style)
@@ -813,8 +815,10 @@ async def generate_cover_image(
     if not record:
         raise NotFoundException("Record not found")
 
+    is_admin = current_user.email and current_user.email in ADMIN_EMAILS
+
     # Check generation limit
-    if record.cover_gen_count >= 3:
+    if not is_admin and record.cover_gen_count >= 3:
         raise HTTPException(
             status_code=400,
             detail="생성 횟수가 초과되었습니다 (최대 3회)",
@@ -884,7 +888,7 @@ async def generate_cover_image_mindlogic(
     style: str = Form(...),
     reference_image: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """MindLogic Imagen edit-image 엔드포인트. style로 미리 정의된 프롬프트 사용."""
     style_prompt = ML_COVER_STYLE_PROMPTS.get(style)
@@ -899,7 +903,9 @@ async def generate_cover_image_mindlogic(
     if not record:
         raise NotFoundException("Record not found")
 
-    if record.cover_gen_count >= 3:
+    is_admin = current_user.email and current_user.email in ADMIN_EMAILS
+
+    if not is_admin and record.cover_gen_count >= 3:
         raise HTTPException(
             status_code=400,
             detail="생성 횟수가 초과되었습니다 (최대 3회)",

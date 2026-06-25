@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.credit import CreditTransaction, TxType
+from app.config import settings
+
+ADMIN_EMAILS = {e.strip() for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
 
 PACKAGES = {
     "credit_1000": {"credits": 1000, "price_krw": 10000, "price_usd": 999},
@@ -75,6 +78,9 @@ class CreditService:
             select(User).where(User.id == user_id).with_for_update()
         )
         user = result.scalar_one()
+
+        if user.email and user.email in ADMIN_EMAILS:
+            return None
 
         if user.credits < cost:
             raise InsufficientCreditsError(
