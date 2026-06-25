@@ -78,7 +78,7 @@ class CreditService:
 
         if user.credits < cost:
             raise InsufficientCreditsError(
-                f"Need {cost}, have {user.credits}"
+                "크레딧이 부족합니다."
             )
 
         new_balance = user.credits - cost
