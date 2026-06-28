@@ -49,7 +49,11 @@ from app.core.exceptions import ForbiddenException, NotFoundException
 router = APIRouter()
 
 # Map frontend recordType values to/from DB exhibition_type enum values
-_RECORD_TYPE_TO_DB = {"exhibit": "walk", "retro_tape": "memorial_tape"}
+_RECORD_TYPE_TO_DB = {
+    "exhibit": "walk",
+    "retro_tape": "memorial_tape",
+    "memorial": "memorial",
+}
 _DB_TO_RECORD_TYPE = {v: k for k, v in _RECORD_TYPE_TO_DB.items()}
 
 
