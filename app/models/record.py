@@ -25,6 +25,7 @@ from app.database import Base
 class ExhibitionType(str, enum.Enum):
     WALK = "walk"
     MEMORIAL_TAPE = "memorial_tape"
+    MEMORIAL = "memorial"
 
 if TYPE_CHECKING:
     from app.models.cover_image import CoverImage
