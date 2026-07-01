@@ -75,6 +75,13 @@ class User(Base):
         Integer, default=0, server_default=text("0"), nullable=False
     )
 
+    # 무료 체험 앨범(가입당 1회) 소진 여부.
+    # 앨범 개수(count)로 판단하면 삭제→재생성으로 무한 무료가 가능하므로,
+    # 자격을 유저 단위로 영구 기록한다. 한번 true가 되면 앨범을 지워도 복구되지 않음.
+    free_trial_used: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+
     # 관계: User(1) - OAuthAccount(N)
     oauth_accounts: Mapped[List["OAuthAccount"]] = relationship(
         "OAuthAccount",

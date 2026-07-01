@@ -67,10 +67,11 @@ async def create_record(
     service = RecordService(db)
     credit_service = CreditService(db)
 
-    # 가입 후 첫 앨범은 크레딧 없이 무료 생성 (체험 앨범)
-    is_first_album = await service.count_owned_records(current_user.id) == 0
+    # 가입당 1회 무료 체험 앨범. 자격은 유저 단위로 판단한다.
+    # (앨범 개수로 판단하면 삭제→재생성으로 무한 무료가 가능하므로 사용하지 않음)
+    is_trial_album = not current_user.free_trial_used
 
-    if not is_first_album:
+    if not is_trial_album:
         # 크레딧 차감 (900C) — 앨범 생성과 같은 트랜잭션
         try:
             await credit_service.deduct_credits(
@@ -89,8 +90,13 @@ async def create_record(
         google_drive_url=body.googleDriveUrl,
         icloud_url=body.icloudUrl,
         mybox_url=body.myboxUrl,
-        is_trial=is_first_album,
+        is_trial=is_trial_album,
     )
+
+    # 무료 혜택을 사용했으면 유저에 영구 기록 (같은 트랜잭션에서 commit)
+    if is_trial_album:
+        current_user.free_trial_used = True
+        db.add(current_user)
 
     # 둘 다 flush 상태 — 한 번에 commit (원자적)
     await db.commit()
