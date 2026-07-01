@@ -11,6 +11,7 @@ from app.schemas.record import (
     LifestorySummary,
     TimelineSummary,
     EventItem,
+    trial_fields,
 )
 from app.services.record import RecordService
 from app.api.v1.record import _to_record_type
@@ -67,6 +68,7 @@ async def get_record_list(
                     for e in (r.timeline.events if r.timeline and r.timeline.events else [])
                 ]
             ) if r.timeline else None,
+            **trial_fields(r.is_trial, r.created_at),
             createdAt=r.created_at,
             updatedAt=r.updated_at,
         )

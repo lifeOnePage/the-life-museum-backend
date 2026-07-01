@@ -35,6 +35,17 @@ class RecordService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def count_owned_records(self, user_id: uuid.UUID) -> int:
+        """사용자가 생성한(소유) 앨범 수."""
+        from sqlalchemy import func
+
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(Record)
+            .where(Record.creator_id == user_id)
+        )
+        return result.scalar_one()
+
     async def create_record(
         self,
         user_id: uuid.UUID,
@@ -44,6 +55,7 @@ class RecordService:
         google_drive_url: str | None,
         icloud_url: str | None,
         mybox_url: str | None,
+        is_trial: bool = False,
     ) -> Record:
         # Google Photos 메타데이터 자동 채움
         album_meta: AlbumMetadata | None = None
@@ -63,6 +75,7 @@ class RecordService:
             google_drive_url=google_drive_url,
             icloud_url=icloud_url,
             mybox_url=mybox_url,
+            is_trial=is_trial,
         )
         self.db.add(record)
         await self.db.flush()

@@ -37,6 +37,7 @@ from app.schemas.record import (
     CoverUrlRequest,
     ShareRecordRequest,
     PublicUpdateRequest,
+    trial_fields,
 )
 from app.services.record import RecordService
 from app.services.credit import CreditService, InsufficientCreditsError, ADMIN_EMAILS
@@ -63,18 +64,23 @@ async def create_record(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # 크레딧 차감 (900C) — 앨범 생성과 같은 트랜잭션
-    credit_service = CreditService(db)
-    try:
-        await credit_service.deduct_credits(
-            user_id=current_user.id,
-            tx_type="album_create",
-            reference_id=None,  # record.id는 아직 없음 — commit 후 update 가능
-        )
-    except InsufficientCreditsError as e:
-        raise HTTPException(status_code=402, detail=str(e))
-
     service = RecordService(db)
+    credit_service = CreditService(db)
+
+    # 가입 후 첫 앨범은 크레딧 없이 무료 생성 (체험 앨범)
+    is_first_album = await service.count_owned_records(current_user.id) == 0
+
+    if not is_first_album:
+        # 크레딧 차감 (900C) — 앨범 생성과 같은 트랜잭션
+        try:
+            await credit_service.deduct_credits(
+                user_id=current_user.id,
+                tx_type="album_create",
+                reference_id=None,  # record.id는 아직 없음 — commit 후 update 가능
+            )
+        except InsufficientCreditsError as e:
+            raise HTTPException(status_code=402, detail=str(e))
+
     record = await service.create_record(
         user_id=current_user.id,
         title=body.title or "",
@@ -83,6 +89,7 @@ async def create_record(
         google_drive_url=body.googleDriveUrl,
         icloud_url=body.icloudUrl,
         mybox_url=body.myboxUrl,
+        is_trial=is_first_album,
     )
 
     # 둘 다 flush 상태 — 한 번에 commit (원자적)
@@ -116,6 +123,7 @@ async def create_record(
         vhsTransition=record.vhs_transition,
         vhsPhotoFrameIndex=record.vhs_photo_frame_index,
         coverImage=CoverImageInfo(url=record.cover_image.url) if record.cover_image else None,
+        **trial_fields(record.is_trial, record.created_at),
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -218,6 +226,7 @@ async def update_record(
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
         vhsPhotoFrameIndex=record.vhs_photo_frame_index,
+        **trial_fields(record.is_trial, record.created_at),
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -255,8 +264,53 @@ async def update_public(
     if not is_owner:
         raise ForbiddenException("Only the owner can change public status")
 
+    # 무료 체험 앨범은 공유(공개) 불가 — 잠금 해제(activate) 후 가능
+    if record.is_trial and body.isPublic:
+        raise HTTPException(
+            status_code=403,
+            detail="무료 체험 앨범은 공유할 수 없습니다. 크레딧으로 잠금을 해제해 주세요.",
+        )
+
     record = await service.update_record(record, {"is_public": body.isPublic})
     return success_response(data={"ok": True, "isPublic": record.is_public})
+
+
+@router.post("/{record_id}/activate", response_model=ApiResponse)
+async def activate_record(
+    record_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """무료 체험 앨범 영구 잠금 해제 — 900C 차감 후 is_trial=False."""
+    service = RecordService(db)
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+
+    assoc = await service.get_user_association(current_user.id, record_id)
+    is_owner = (assoc is not None and assoc.role == "owner") or (
+        record.creator_id == current_user.id
+    )
+    if not is_owner:
+        raise ForbiddenException("Only the owner can activate this record")
+
+    if not record.is_trial:
+        # 이미 활성화된 앨범 — 멱등 처리
+        return success_response(data={"ok": True, "isTrial": False})
+
+    credit_service = CreditService(db)
+    try:
+        await credit_service.deduct_credits(
+            user_id=current_user.id,
+            tx_type="album_create",
+            reference_id=str(record.id),
+        )
+    except InsufficientCreditsError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+
+    record.is_trial = False
+    await db.commit()
+    return success_response(data={"ok": True, "isTrial": False})
 
 
 @router.patch("/{record_id}/story-gen-count", response_model=ApiResponse)
@@ -362,6 +416,7 @@ async def get_record(
         coverImage=cover_image,
         lifestory=lifestory,
         timeline=timeline,
+        **trial_fields(record.is_trial, record.created_at),
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
@@ -1014,6 +1069,7 @@ async def add_shared_record(
                 for e in (record.timeline.events if record.timeline and record.timeline.events else [])
             ]
         ) if record.timeline else None,
+        **trial_fields(record.is_trial, record.created_at),
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
