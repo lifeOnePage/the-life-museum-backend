@@ -2,12 +2,31 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, AfterValidator
 
 from app.schemas.scraper import MediaItem
+
+# 무료 체험 앨범 유효 기간 (생성일 기준)
+TRIAL_DAYS = 30
+
+
+def trial_fields(is_trial: bool, created_at: datetime) -> dict:
+    """체험 앨범 응답 필드 계산 (isTrial / trialExpiresAt / isExpired)."""
+    if not is_trial:
+        return {"isTrial": False, "trialExpiresAt": None, "isExpired": False}
+    expires_at = created_at + timedelta(days=TRIAL_DAYS)
+    now = datetime.now(timezone.utc)
+    # created_at이 naive일 경우 대비
+    if expires_at.tzinfo is None:
+        now = now.replace(tzinfo=None)
+    return {
+        "isTrial": True,
+        "trialExpiresAt": expires_at,
+        "isExpired": now > expires_at,
+    }
 
 
 def validate_hex_color(v: str | None) -> str | None:
@@ -99,6 +118,9 @@ class RecordResponse(BaseModel):
     vhsTransition: str | None = None
     vhsPhotoFrameIndex: int | None = None
     coverImage: CoverImageInfo | None = None
+    isTrial: bool = False
+    trialExpiresAt: datetime | None = None
+    isExpired: bool = False
     createdAt: datetime
     updatedAt: datetime
 
@@ -158,6 +180,9 @@ class RecordDetailResponse(BaseModel):
     coverImage: CoverImageInfo | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
+    isTrial: bool = False
+    trialExpiresAt: datetime | None = None
+    isExpired: bool = False
     createdAt: datetime
     updatedAt: datetime
 
@@ -247,6 +272,9 @@ class RecordListItem(BaseModel):
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
     role: Literal["owner", "shared"] = "owner"
+    isTrial: bool = False
+    trialExpiresAt: datetime | None = None
+    isExpired: bool = False
     createdAt: datetime
     updatedAt: datetime
 
