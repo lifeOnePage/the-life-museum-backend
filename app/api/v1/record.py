@@ -270,11 +270,15 @@ async def update_public(
     if not is_owner:
         raise ForbiddenException("Only the owner can change public status")
 
-    # 무료 체험 앨범은 공유(공개) 불가 — 잠금 해제(activate) 후 가능
-    if record.is_trial and body.isPublic:
+    # 무료 체험 앨범은 30일 체험 기간엔 공유 가능, 만료 후엔 불가 (잠금 해제 후 가능)
+    if (
+        body.isPublic
+        and record.is_trial
+        and trial_fields(record.is_trial, record.created_at)["isExpired"]
+    ):
         raise HTTPException(
             status_code=403,
-            detail="무료 체험 앨범은 공유할 수 없습니다. 크레딧으로 잠금을 해제해 주세요.",
+            detail="무료 체험 기간이 만료되었습니다. 크레딧으로 잠금을 해제해 주세요.",
         )
 
     record = await service.update_record(record, {"is_public": body.isPublic})
