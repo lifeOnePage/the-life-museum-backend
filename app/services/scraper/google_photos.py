@@ -23,6 +23,23 @@ _AF_DATA_RE = re.compile(
 )
 
 
+def _extract_og_image_base(html: str) -> str | None:
+    """og:image 메타태그에서 앨범 커버의 base URL(사이즈 접미사 제외)을 추출.
+
+    공유 페이지 헤더 이미지 = 앨범 커버라서 스크랩 목록 첫 항목이 항상 커버가 된다.
+    base URL 매칭으로 해당 항목을 is_cover 로 표시하기 위해 사용.
+    """
+    for pattern in (
+        r'<meta\s+[^>]*property=["\']og:image["\']\s+[^>]*content=["\']([^"\']*)["\']',
+        r'<meta\s+[^>]*content=["\']([^"\']*)["\']\s+[^>]*property=["\']og:image["\']',
+    ):
+        match = re.search(pattern, html, re.IGNORECASE)
+        if match:
+            url = match.group(1).strip()
+            return url.split("=")[0] if "=" in url else url
+    return None
+
+
 def _ensure_desktop_redirect(url: str) -> str:
     """Append ?_imcp=1 to photos.app.goo.gl URLs to trigger server-side redirect
     to photos.google.com instead of the Firebase Dynamic Link page."""
@@ -195,6 +212,9 @@ class GooglePhotosScraper(BaseScraper):
             resp.raise_for_status()
             html = resp.text
 
+            # 앨범 커버(og:image) base — 목록에서 커버 항목 표시용
+            og_cover_base = _extract_og_image_base(html)
+
             raw_urls = _LH3_PHOTO_RE.findall(html)
 
             # Phase 2: deduplicate by base URL, collect all param variants
@@ -272,6 +292,7 @@ class GooglePhotosScraper(BaseScraper):
                     type=media_type,
                     thumbnail_url=thumbnail_url,
                     original_url=original_url,
+                    is_cover=(og_cover_base is not None and base == og_cover_base),
                 )
             )
 

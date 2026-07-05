@@ -352,12 +352,10 @@ class RecordService:
             cache_entry = cached.get(url_hash)
 
             if cache_entry and cache_entry.status == "ready":
-                # Cache hit: use optimized R2 URL
-                result_items.append(MediaItem(
-                    type=item.type,
-                    thumbnail_url=item.thumbnail_url,
-                    original_url=cache_entry.r2_url,
-                ))
+                # Cache hit: use optimized R2 URL (keep all other fields incl. is_cover)
+                result_items.append(
+                    item.model_copy(update={"original_url": cache_entry.r2_url})
+                )
             else:
                 # Cache miss or still processing: return original URL as fallback
                 result_items.append(item)
