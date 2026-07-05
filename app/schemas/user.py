@@ -26,6 +26,7 @@ class UserResponse(UserBase):
     is_active: bool
     is_verified: bool
     credits: int = 0
+    free_trial_used: bool = False
     created_at: datetime
 
     class Config:
