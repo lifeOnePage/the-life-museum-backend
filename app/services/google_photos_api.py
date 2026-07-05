@@ -45,6 +45,8 @@ class GooglePhotosAPI:
 
         title = self._extract_og_tag(html, "og:title")
         cover_url = self._extract_og_tag(html, "og:image")
+        if cover_url:
+            cover_url = self._upgrade_cover_url(cover_url)
 
         if not title and not cover_url:
             logger.warning("No OG meta tags found for URL: %s", share_url)
@@ -73,6 +75,17 @@ class GooglePhotosAPI:
             cover_photo_bytes=cover_bytes,
             cover_photo_content_type=cover_content_type,
         )
+
+    @staticmethod
+    def _upgrade_cover_url(url: str) -> str:
+        """og:image는 소셜 미리보기용 저해상도 크롭본(예: =w600-h315-p-k-no).
+
+        사이즈 접미사를 무크롭 고해상도 변형으로 재작성한다.
+        (=w2000-h2000 aspect-fit — 스크래퍼의 미디어 URL 관례와 동일)
+        """
+        if "googleusercontent.com" in url and "=" in url:
+            return url.rsplit("=", 1)[0] + "=w2000-h2000"
+        return url
 
     @staticmethod
     def _strip_emoji(text: str) -> str:
