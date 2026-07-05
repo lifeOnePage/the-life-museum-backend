@@ -61,8 +61,9 @@ class Settings(BaseSettings):
 
     # Payment Gateways
     STRIPE_SECRET_KEY: str = ""
-    PORTONE_API_KEY: str = ""
-    PORTONE_API_SECRET: str = ""
+    PORTONE_API_KEY: str = ""       # (구) 아임포트 V1 imp_key — 미사용
+    PORTONE_API_SECRET: str = ""    # (구) 아임포트 V1 imp_secret — 미사용
+    PORTONE_V2_API_SECRET: str = "" # PortOne V2 API Secret (콘솔 → API Keys)
 
     # Admin
     ADMIN_EMAILS: str = "goodchaeee@naver.com,goodchaeee@gmail.com,akea1027th@gmail.com,byul88byul@gmail.com,jusub@sogang.ac.kr,showyourmind@gmail.com"
