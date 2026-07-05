@@ -194,7 +194,7 @@ class RecordService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def scrape_media_list(self, record: Record) -> list[MediaItem]:
+    async def scrape_media_list(self, record: Record, images_only: bool = False) -> list[MediaItem]:
         items: list[MediaItem] = []
         source_urls = [
             ("google_photos", record.google_photo_url),
@@ -217,12 +217,16 @@ class RecordService:
             try:
                 logger.warning("Scraping provider=%s url=%s", provider, url)
                 scraper = scrapers[provider]()
-                media_items = await scraper.scrape(url)
+                media_items = await scraper.scrape(url, images_only=images_only)
                 logger.warning("Scraping result provider=%s: %d items", provider, len(media_items))
                 items.extend(media_items)
             except Exception as e:
                 logger.error("Scraping failed for provider=%s url=%s: %s", provider, url, e)
                 continue
+
+        # 이미지 전용: 영상 필터 + 영상 캐시/트랜스코딩 단계 스킵
+        if images_only:
+            return [i for i in items if i.type != MediaType.VIDEO]
 
         # ── Video cache: swap original URLs for optimized R2 URLs ──
         items = await self._apply_video_cache(items, record.id)
@@ -230,7 +234,7 @@ class RecordService:
         return items
 
     @staticmethod
-    async def scrape_media_list_stream_standalone(record_snapshot: dict):
+    async def scrape_media_list_stream_standalone(record_snapshot: dict, images_only: bool = False):
         """
         SSE로 스크래핑 진행 상황 스트리밍 (DB 세션 미사용).
 
@@ -270,7 +274,7 @@ class RecordService:
                     _q.put(event)
 
                 scrape_task = asyncio.create_task(
-                    scraper.scrape(url, progress_callback=progress_cb)
+                    scraper.scrape(url, progress_callback=progress_cb, images_only=images_only)
                 )
 
                 # Poll queue for intermediate progress events while scraping
@@ -305,6 +309,13 @@ class RecordService:
                 logger.error("Scraping failed: provider=%s error=%s", provider, e)
                 yield {"type": "progress", "phase": "source_error",
                        "source": provider, "sourceIndex": idx, "totalSources": total}
+
+        # 이미지 전용: 영상 필터 + 영상 캐시/트랜스코딩 단계 스킵
+        if images_only:
+            items = [i for i in items if i.type != MediaType.VIDEO]
+            yield {"type": "complete",
+                   "mediaList": [item.model_dump() for item in items]}
+            return
 
         yield {"type": "progress", "phase": "optimizing"}
 

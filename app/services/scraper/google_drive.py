@@ -165,7 +165,7 @@ def build_urls(file_id: str, media_type: str) -> dict:
 
 
 class GoogleDriveScraper(BaseScraper):
-    async def scrape(self, url: str, progress_callback=None) -> list[MediaItem]:
+    async def scrape(self, url: str, progress_callback=None, images_only: bool = False) -> list[MediaItem]:
         folder_id = extract_folder_id(url)
         if not folder_id:
             logger.warning("GoogleDriveScraper: folder id 추출 실패 url=%s", url)

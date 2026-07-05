@@ -190,7 +190,7 @@ class GooglePhotosScraper(BaseScraper):
                 pass
         return (base_url, MediaType.IMAGE)
 
-    async def scrape(self, url: str, progress_callback=None) -> list[MediaItem]:
+    async def scrape(self, url: str, progress_callback=None, images_only: bool = False) -> list[MediaItem]:
         fetch_url = _ensure_desktop_redirect(url)
 
         if progress_callback:
@@ -257,7 +257,13 @@ class GooglePhotosScraper(BaseScraper):
                 b: MediaType.VIDEO for b in html_video_bases
             }
 
-            if undetected:
+            if undetected and images_only:
+                # 이미지 전용: 네트워크 프로빙 생략 (속도↑). HTML로 감지된 영상만
+                # 제외하고, 나머지는 이미지로 간주. HTML에 안 잡힌 일부 영상이
+                # 이미지로 섞일 수 있으나 배경 그리드 용도라 허용.
+                for b in undetected:
+                    type_map[b] = MediaType.IMAGE
+            elif undetected:
                 semaphore = asyncio.Semaphore(self._PROBE_CONCURRENCY)
                 tasks = [
                     self._probe_media_type(client, semaphore, b)

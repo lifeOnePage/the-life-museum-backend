@@ -135,7 +135,7 @@ class BaseScraper(ABC):
             self.driver = None
 
     @abstractmethod
-    async def scrape(self, url: str, progress_callback: ProgressCallback = None) -> list[MediaItem]:
+    async def scrape(self, url: str, progress_callback: ProgressCallback = None, images_only: bool = False) -> list[MediaItem]:
         pass
 
     @staticmethod

@@ -49,7 +49,7 @@ class ICloudScraper(BaseScraper):
         )
         return f"{settings.R2_PUBLIC_URL}/{key}"
 
-    async def scrape(self, url: str, progress_callback=None) -> list[MediaItem]:
+    async def scrape(self, url: str, progress_callback=None, images_only: bool = False) -> list[MediaItem]:
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
             return await loop.run_in_executor(

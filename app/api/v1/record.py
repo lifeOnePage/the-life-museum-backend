@@ -440,21 +440,25 @@ async def get_record(
 @router.get("/{record_id}/media", response_model=ApiResponse)
 async def get_record_media(
     record_id: uuid.UUID,
+    images_only: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
-    """스크래핑으로 mediaList 구성 (lazy 호출용)."""
+    """스크래핑으로 mediaList 구성 (lazy 호출용).
+
+    images_only=true 이면 영상을 제외하고 이미지만 반환 (프로빙/트랜스코딩 스킵 → 빠름).
+    """
     service = RecordService(db)
     record = await service.get_record_by_id(record_id)
     if not record:
         raise NotFoundException("Record not found")
 
-    media_list = await service.scrape_media_list(record)
+    media_list = await service.scrape_media_list(record, images_only=images_only)
     data = RecordMediaResponse(mediaList=media_list)
     return success_response(data=data)
 
 
 @router.get("/{record_id}/media/stream")
-async def stream_record_media(record_id: uuid.UUID):
+async def stream_record_media(record_id: uuid.UUID, images_only: bool = False):
     """SSE 스트리밍으로 스크래핑 진행 상황 + mediaList 반환.
 
     DB 세션을 Depends로 주입받지 않음 — StreamingResponse가 응답 완료까지
@@ -478,7 +482,9 @@ async def stream_record_media(record_id: uuid.UUID):
     # DB session released here — before streaming begins
 
     async def event_generator():
-        async for event in RecordService.scrape_media_list_stream_standalone(record_snapshot):
+        async for event in RecordService.scrape_media_list_stream_standalone(
+            record_snapshot, images_only=images_only
+        ):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(
