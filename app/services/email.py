@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 _VERIFICATION_HTML = """\
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
-  <h2>The Life Museum</h2>
+  <h2>The Life Memory</h2>
   <p style="color:#555;">이메일 인증번호입니다.</p>
   <div style="font-size:36px;font-weight:bold;letter-spacing:10px;padding:20px 0;">{code}</div>
   <p style="color:#888;font-size:12px;">5분 이내에 입력해 주세요. 본인이 요청하지 않은 경우 무시하세요.</p>
@@ -46,7 +46,7 @@ class GmailAPIProvider(EmailProvider):
         self.refresh_token = refresh_token
         self.client_id = client_id
         self.client_secret = client_secret
-        self.sender = f"The Life Museum <{user}>"
+        self.sender = f"The Life Memory <{user}>"
         self._cached_token: str | None = None
         self._token_expires_at: float = 0
 
@@ -107,7 +107,7 @@ class EmailService:
         return "".join(random.choices(string.digits, k=length))
 
     async def send_verification_code(self, email: str, code: str) -> bool:
-        subject = "[The Life Museum] 이메일 인증번호"
+        subject = "[The Life Memory] 이메일 인증번호"
         html = _VERIFICATION_HTML.format(code=code)
         return await self.provider.send_email(email, subject, html)
 
