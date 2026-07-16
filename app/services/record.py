@@ -82,6 +82,8 @@ class RecordService:
         await self.db.flush()
 
         # 커버 이미지 자동 생성 (R2에 재업로드하여 CORS 문제 방지)
+        # 뒷면 사진을 아직 안 고른 상태에서도 뒷면이 빈 채로 남지 않도록,
+        # 자동 선택된 대표사진을 뒷면 사진 기본값으로도 저장한다.
         if album_meta and album_meta.cover_photo_bytes:
             from app.services.storage import R2StorageService
             storage = R2StorageService()
@@ -90,9 +92,11 @@ class RecordService:
             r2_url = await storage.upload_file(album_meta.cover_photo_bytes, content_type, ext)
             cover = CoverImage(record_id=record.id, url=r2_url)
             self.db.add(cover)
+            record.back_cover_image_url = r2_url
         elif album_meta and album_meta.cover_photo_url:
             cover = CoverImage(record_id=record.id, url=album_meta.cover_photo_url)
             self.db.add(cover)
+            record.back_cover_image_url = album_meta.cover_photo_url
 
         assoc = UserRecordAssociation(user_id=user_id, record_id=record.id, role="owner")
         self.db.add(assoc)
@@ -720,12 +724,19 @@ class RecordService:
 
         if existing:
             existing.url = url
-            await self.db.commit()
-            await self.db.refresh(existing)
-            return existing
+            cover = existing
         else:
             cover = CoverImage(record_id=record_id, url=url)
             self.db.add(cover)
-            await self.db.commit()
-            await self.db.refresh(cover)
-            return cover
+
+        # 뒷면 사진을 아직 안 고른 앨범은 앞면 커버로 기본값을 채워둔다
+        # (영상 커버는 뒷면 캔버스에서 렌더링할 수 없으므로 제외).
+        is_video = url.lower().split("?")[0].endswith((".mp4", ".webm", ".mov"))
+        if not is_video:
+            record = await self.get_record_by_id(record_id)
+            if record and not record.back_cover_image_url:
+                record.back_cover_image_url = url
+
+        await self.db.commit()
+        await self.db.refresh(cover)
+        return cover
