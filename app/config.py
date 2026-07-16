@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # Admin
     ADMIN_EMAILS: str = "goodchaeee@naver.com,goodchaeee@gmail.com,akea1027th@gmail.com,byul88byul@gmail.com,jusub@sogang.ac.kr,showyourmind@gmail.com"
 
+    # Coupon 발행 페이지 패스워드 (미설정 시 발행 API 비활성)
+    COUPON_ADMIN_PASSWORD: str = ""
+
     # Dev
     DEV_AUTH_KEY: str = ""
 

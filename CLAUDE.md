@@ -47,6 +47,7 @@ REPLICATE_API_TOKEN       # Replicate AI 영상 생성
 R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY
 R2_BUCKET_NAME / R2_PUBLIC_URL
 DEV_AUTH_KEY              # X-Dev-Key 우회용 (개발 환경)
+COUPON_ADMIN_PASSWORD     # 쿠폰 발행 페이지(/coupon-admin) 패스워드 — 미설정 시 발행 API 503
 ```
 
 ---
