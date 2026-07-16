@@ -1112,6 +1112,7 @@ async def add_shared_record(
         walkCameraSpeed=record.walk_camera_speed,
         walkVideoPreview=record.walk_video_preview,
         walkVideoMaxDuration=record.walk_video_max_duration,
+        exhibitionType=record.exhibition_type,
         role="shared",
         lifestory=LifestorySummary(
             mood=record.lifestory.mood,
