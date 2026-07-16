@@ -53,6 +53,11 @@ async def get_record_list(
             vhsFilter=r.vhs_filter,
             vhsTransition=r.vhs_transition,
             vhsPhotoFrameIndex=r.vhs_photo_frame_index,
+            vhsImageDuration=r.vhs_image_duration,
+            vhsVideoMode=r.vhs_video_mode,
+            walkCameraSpeed=r.walk_camera_speed,
+            walkVideoPreview=r.walk_video_preview,
+            walkVideoMaxDuration=r.walk_video_max_duration,
             role=role,
             lifestory=LifestorySummary(
                 mood=r.lifestory.mood,

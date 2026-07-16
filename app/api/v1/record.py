@@ -40,6 +40,7 @@ from app.schemas.record import (
     trial_fields,
 )
 from app.services.record import RecordService
+from app.services.media_cache import media_cache
 from app.services.credit import CreditService, InsufficientCreditsError, ADMIN_EMAILS
 from app.services.openai import OpenAIService
 from app.services.gemini import GeminiService
@@ -132,6 +133,11 @@ async def create_record(
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
         vhsPhotoFrameIndex=record.vhs_photo_frame_index,
+        vhsImageDuration=record.vhs_image_duration,
+        vhsVideoMode=record.vhs_video_mode,
+        walkCameraSpeed=record.walk_camera_speed,
+        walkVideoPreview=record.walk_video_preview,
+        walkVideoMaxDuration=record.walk_video_max_duration,
         coverImage=CoverImageInfo(url=record.cover_image.url) if record.cover_image else None,
         **trial_fields(record.is_trial, record.created_at),
         createdAt=record.created_at,
@@ -188,6 +194,11 @@ async def update_record(
         "vhsFilter": "vhs_filter",
         "vhsTransition": "vhs_transition",
         "vhsPhotoFrameIndex": "vhs_photo_frame_index",
+        "vhsImageDuration": "vhs_image_duration",
+        "vhsVideoMode": "vhs_video_mode",
+        "walkCameraSpeed": "walk_camera_speed",
+        "walkVideoPreview": "walk_video_preview",
+        "walkVideoMaxDuration": "walk_video_max_duration",
     }
     update_data = {}
     for schema_field, model_field in field_mapping.items():
@@ -207,6 +218,11 @@ async def update_record(
         asyncio.create_task(
             RecordService._pretranscode_album_videos(record.id, new_google_url)
         )
+
+    # 소스 URL이 바뀌면 이전 앨범의 스크랩 결과 캐시는 더 이상 유효하지 않음
+    _SOURCE_URL_FIELDS = {"google_photo_url", "google_drive_url", "icloud_url", "mybox_url"}
+    if _SOURCE_URL_FIELDS & update_data.keys():
+        media_cache.invalidate(record.id)
 
     data = RecordResponse(
         id=record.id,
@@ -236,6 +252,11 @@ async def update_record(
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
         vhsPhotoFrameIndex=record.vhs_photo_frame_index,
+        vhsImageDuration=record.vhs_image_duration,
+        vhsVideoMode=record.vhs_video_mode,
+        walkCameraSpeed=record.walk_camera_speed,
+        walkVideoPreview=record.walk_video_preview,
+        walkVideoMaxDuration=record.walk_video_max_duration,
         **trial_fields(record.is_trial, record.created_at),
         createdAt=record.created_at,
         updatedAt=record.updated_at,
@@ -252,6 +273,7 @@ async def delete_record(
     service = RecordService(db)
     # 권한 확인 및 삭제는 서비스에서 처리 (소유자가 아니면 ForbiddenException)
     await service.delete_record(current_user.id, record_id)
+    media_cache.invalidate(record_id)
     return success_response(data=None, message="Record deleted")
 
 
@@ -425,6 +447,11 @@ async def get_record(
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
         vhsPhotoFrameIndex=record.vhs_photo_frame_index,
+        vhsImageDuration=record.vhs_image_duration,
+        vhsVideoMode=record.vhs_video_mode,
+        walkCameraSpeed=record.walk_camera_speed,
+        walkVideoPreview=record.walk_video_preview,
+        walkVideoMaxDuration=record.walk_video_max_duration,
         coverGenCount=record.cover_gen_count,
         storyGenCount=record.story_gen_count,
         coverImage=cover_image,
@@ -441,24 +468,30 @@ async def get_record(
 async def get_record_media(
     record_id: uuid.UUID,
     images_only: bool = False,
+    refresh: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
     """스크래핑으로 mediaList 구성 (lazy 호출용).
 
     images_only=true 이면 영상을 제외하고 이미지만 반환 (프로빙/트랜스코딩 스킵 → 빠름).
+    refresh=true 이면 서버 캐시를 무시하고 원본 앨범을 다시 스크래핑.
     """
     service = RecordService(db)
     record = await service.get_record_by_id(record_id)
     if not record:
         raise NotFoundException("Record not found")
 
-    media_list = await service.scrape_media_list(record, images_only=images_only)
+    media_list = await service.scrape_media_list(
+        record, images_only=images_only, refresh=refresh
+    )
     data = RecordMediaResponse(mediaList=media_list)
     return success_response(data=data)
 
 
 @router.get("/{record_id}/media/stream")
-async def stream_record_media(record_id: uuid.UUID, images_only: bool = False):
+async def stream_record_media(
+    record_id: uuid.UUID, images_only: bool = False, refresh: bool = False
+):
     """SSE 스트리밍으로 스크래핑 진행 상황 + mediaList 반환.
 
     DB 세션을 Depends로 주입받지 않음 — StreamingResponse가 응답 완료까지
@@ -483,7 +516,7 @@ async def stream_record_media(record_id: uuid.UUID, images_only: bool = False):
 
     async def event_generator():
         async for event in RecordService.scrape_media_list_stream_standalone(
-            record_snapshot, images_only=images_only
+            record_snapshot, images_only=images_only, refresh=refresh
         ):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
@@ -1074,6 +1107,11 @@ async def add_shared_record(
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
         vhsPhotoFrameIndex=record.vhs_photo_frame_index,
+        vhsImageDuration=record.vhs_image_duration,
+        vhsVideoMode=record.vhs_video_mode,
+        walkCameraSpeed=record.walk_camera_speed,
+        walkVideoPreview=record.walk_video_preview,
+        walkVideoMaxDuration=record.walk_video_max_duration,
         role="shared",
         lifestory=LifestorySummary(
             mood=record.lifestory.mood,

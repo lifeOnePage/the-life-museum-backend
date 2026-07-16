@@ -21,6 +21,7 @@ from app.services.scraper import (
     MyBoxScraper,
 )
 from app.services.google_photos_api import GooglePhotosAPI, AlbumMetadata
+from app.services.media_cache import media_cache
 from app.services.video_transcoder import (
     VideoTranscoderService,
     compute_source_url_hash,
@@ -194,92 +195,147 @@ class RecordService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def scrape_media_list(self, record: Record, images_only: bool = False) -> list[MediaItem]:
-        items: list[MediaItem] = []
-        source_urls = [
-            ("google_photos", record.google_photo_url),
-            ("google_drive", record.google_drive_url),
-            ("icloud", record.icloud_url),
-            ("mybox", record.mybox_url),
+    @staticmethod
+    def _source_urls(record_like) -> list[tuple[str, str | None]]:
+        """record ORM 객체 또는 snapshot dict에서 (provider, url) 목록 추출."""
+        if isinstance(record_like, dict):
+            get = record_like.get
+        else:
+            get = lambda k: getattr(record_like, k)  # noqa: E731
+        return [
+            ("google_photos", get("google_photo_url")),
+            ("google_drive", get("google_drive_url")),
+            ("icloud", get("icloud_url")),
+            ("mybox", get("mybox_url")),
         ]
 
+    @staticmethod
+    async def _scrape_all_sources(
+        source_urls: list[tuple[str, str | None]], images_only: bool
+    ) -> tuple[list[MediaItem], bool]:
+        """모든 소스를 순차 스크랩. (items, all_sources_ok) 반환.
+
+        all_sources_ok=False 는 소스 하나 이상이 실패해 결과가 부분적일 수
+        있음을 뜻한다 — 캐시 TTL 차등에 사용.
+        """
         scrapers = {
             "google_photos": GooglePhotosScraper,
             "google_drive": GoogleDriveScraper,
             "icloud": ICloudScraper,
             "mybox": MyBoxScraper,
         }
-
+        items: list[MediaItem] = []
+        all_ok = True
         for provider, url in source_urls:
             if not url:
-                logger.warning("Skipping provider=%s: url is empty/None", provider)
                 continue
             try:
-                logger.warning("Scraping provider=%s url=%s", provider, url)
+                logger.info("Scraping provider=%s url=%s", provider, url)
                 scraper = scrapers[provider]()
                 media_items = await scraper.scrape(url, images_only=images_only)
-                logger.warning("Scraping result provider=%s: %d items", provider, len(media_items))
+                logger.info("Scraping result provider=%s: %d items", provider, len(media_items))
                 items.extend(media_items)
             except Exception as e:
                 logger.error("Scraping failed for provider=%s url=%s: %s", provider, url, e)
+                all_ok = False
                 continue
+        return items, all_ok
+
+    async def scrape_media_list(
+        self, record: Record, images_only: bool = False, refresh: bool = False
+    ) -> list[MediaItem]:
+        if refresh:
+            media_cache.invalidate(record.id)
+
+        source_urls = self._source_urls(record)
+        providers = [p for p, u in source_urls if u]
+
+        items = await media_cache.get_or_scrape(
+            record.id,
+            images_only,
+            providers,
+            lambda: self._scrape_all_sources(source_urls, images_only),
+        )
 
         # 이미지 전용: 영상 필터 + 영상 캐시/트랜스코딩 단계 스킵
         if images_only:
             return [i for i in items if i.type != MediaType.VIDEO]
 
         # ── Video cache: swap original URLs for optimized R2 URLs ──
+        # 캐시 히트 시에도 매번 수행 — 캐시에는 스크랩 원본 URL만 저장되므로
+        # 백그라운드 트랜스코딩 완료가 다음 조회에 곧바로 반영된다.
         items = await self._apply_video_cache(items, record.id)
 
         return items
 
     @staticmethod
-    async def scrape_media_list_stream_standalone(record_snapshot: dict, images_only: bool = False):
+    async def scrape_media_list_stream_standalone(
+        record_snapshot: dict, images_only: bool = False, refresh: bool = False
+    ):
         """
         SSE로 스크래핑 진행 상황 스트리밍 (DB 세션 미사용).
 
         record_snapshot: {"id", "google_photo_url", "google_drive_url", "icloud_url", "mybox_url"}
         스크래핑은 외부 HTTP 요청만 수행하므로 DB 불필요.
         _apply_video_cache만 별도 세션을 짧게 열어 처리.
+
+        media_cache 히트 시 스크래핑 단계를 통째로 건너뛰고 optimizing →
+        complete만 내보낸다 (프론트 진행바는 totalSources를 쓰는 단계가
+        생략되어도 complete로 정상 종료함).
         """
         from app.database import AsyncSessionLocal
 
-        items: list[MediaItem] = []
-        source_urls = [
-            ("google_photos", record_snapshot["google_photo_url"]),
-            ("google_drive", record_snapshot["google_drive_url"]),
-            ("icloud", record_snapshot["icloud_url"]),
-            ("mybox", record_snapshot["mybox_url"]),
-        ]
-        scrapers = {
-            "google_photos": GooglePhotosScraper,
-            "google_drive": GoogleDriveScraper,
-            "icloud": ICloudScraper,
-            "mybox": MyBoxScraper,
-        }
-
+        record_id = record_snapshot["id"]
+        source_urls = RecordService._source_urls(record_snapshot)
         active_sources = [(p, u) for p, u in source_urls if u]
-        total = len(active_sources)
 
-        yield {"type": "progress", "phase": "started", "totalSources": total}
+        if refresh:
+            media_cache.invalidate(record_id)
 
-        for idx, (provider, url) in enumerate(active_sources):
-            yield {"type": "progress", "phase": "scraping",
-                   "source": provider, "sourceIndex": idx, "totalSources": total}
-            try:
-                scraper = scrapers[provider]()
-                progress_q = thread_queue.Queue()
+        items = media_cache.get(record_id, images_only)
 
-                def progress_cb(event, _q=progress_q):
-                    _q.put(event)
+        if items is None:
+            scrapers = {
+                "google_photos": GooglePhotosScraper,
+                "google_drive": GoogleDriveScraper,
+                "icloud": ICloudScraper,
+                "mybox": MyBoxScraper,
+            }
+            items = []
+            all_ok = True
+            total = len(active_sources)
 
-                scrape_task = asyncio.create_task(
-                    scraper.scrape(url, progress_callback=progress_cb, images_only=images_only)
-                )
+            yield {"type": "progress", "phase": "started", "totalSources": total}
 
-                # Poll queue for intermediate progress events while scraping
-                while not scrape_task.done():
-                    await asyncio.sleep(0.2)
+            for idx, (provider, url) in enumerate(active_sources):
+                yield {"type": "progress", "phase": "scraping",
+                       "source": provider, "sourceIndex": idx, "totalSources": total}
+                try:
+                    scraper = scrapers[provider]()
+                    progress_q = thread_queue.Queue()
+
+                    def progress_cb(event, _q=progress_q):
+                        _q.put(event)
+
+                    scrape_task = asyncio.create_task(
+                        scraper.scrape(url, progress_callback=progress_cb, images_only=images_only)
+                    )
+
+                    # Poll queue for intermediate progress events while scraping
+                    while not scrape_task.done():
+                        await asyncio.sleep(0.2)
+                        while not progress_q.empty():
+                            try:
+                                event = progress_q.get_nowait()
+                                yield {"type": "progress", "phase": "scraping_detail",
+                                       "source": provider, "sourceIndex": idx,
+                                       "totalSources": total, **event}
+                            except thread_queue.Empty:
+                                break
+
+                    media_items = scrape_task.result()
+
+                    # Drain any remaining events
                     while not progress_q.empty():
                         try:
                             event = progress_q.get_nowait()
@@ -289,26 +345,21 @@ class RecordService:
                         except thread_queue.Empty:
                             break
 
-                media_items = scrape_task.result()
+                    items.extend(media_items)
+                    yield {"type": "progress", "phase": "source_done",
+                           "source": provider, "sourceIndex": idx, "totalSources": total,
+                           "itemsFound": len(media_items)}
+                except Exception as e:
+                    logger.error("Scraping failed: provider=%s error=%s", provider, e)
+                    all_ok = False
+                    yield {"type": "progress", "phase": "source_error",
+                           "source": provider, "sourceIndex": idx, "totalSources": total}
 
-                # Drain any remaining events
-                while not progress_q.empty():
-                    try:
-                        event = progress_q.get_nowait()
-                        yield {"type": "progress", "phase": "scraping_detail",
-                               "source": provider, "sourceIndex": idx,
-                               "totalSources": total, **event}
-                    except thread_queue.Empty:
-                        break
-
-                items.extend(media_items)
-                yield {"type": "progress", "phase": "source_done",
-                       "source": provider, "sourceIndex": idx, "totalSources": total,
-                       "itemsFound": len(media_items)}
-            except Exception as e:
-                logger.error("Scraping failed: provider=%s error=%s", provider, e)
-                yield {"type": "progress", "phase": "source_error",
-                       "source": provider, "sourceIndex": idx, "totalSources": total}
+            # 스크랩 원본 결과만 캐시 (video cache 교체 전 — 주석은 media_cache 모듈 참고)
+            media_cache.store(
+                record_id, images_only, items,
+                [p for p, _ in active_sources], all_ok,
+            )
 
         # 이미지 전용: 영상 필터 + 영상 캐시/트랜스코딩 단계 스킵
         if images_only:
@@ -320,7 +371,6 @@ class RecordService:
         yield {"type": "progress", "phase": "optimizing"}
 
         # Open a short-lived DB session only for video cache lookup
-        record_id = record_snapshot["id"]
         async with AsyncSessionLocal() as db:
             service = RecordService(db)
             items = await service._apply_video_cache(items, record_id)

@@ -114,6 +114,15 @@ class Record(Base):
     vhs_filter: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     vhs_transition: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     vhs_photo_frame_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # 사진 표시 시간(초), 영상 재생 방식(0=전체 재생, N=짧게 N초)
+    vhs_image_duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    vhs_video_mode: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Walk(Time Travel) 재생 설정: 카메라 속도(5~240), 비디오 짧게 보기 on/off,
+    # 짧게 볼 때 최대 재생 시간(초)
+    walk_camera_speed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    walk_video_preview: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    walk_video_max_duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # 공개 여부
     is_public: Mapped[bool] = mapped_column(

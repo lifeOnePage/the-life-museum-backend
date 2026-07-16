@@ -83,6 +83,11 @@ class RecordUpdate(BaseModel):
     vhsFilter: str | None = None
     vhsTransition: str | None = None
     vhsPhotoFrameIndex: int | None = None
+    vhsImageDuration: int | None = None
+    vhsVideoMode: int | None = None
+    walkCameraSpeed: int | None = None
+    walkVideoPreview: bool | None = None
+    walkVideoMaxDuration: int | None = None
 
 
 class PublicUpdateRequest(BaseModel):
@@ -117,6 +122,11 @@ class RecordResponse(BaseModel):
     vhsFilter: str | None = None
     vhsTransition: str | None = None
     vhsPhotoFrameIndex: int | None = None
+    vhsImageDuration: int | None = None
+    vhsVideoMode: int | None = None
+    walkCameraSpeed: int | None = None
+    walkVideoPreview: bool | None = None
+    walkVideoMaxDuration: int | None = None
     coverImage: CoverImageInfo | None = None
     isTrial: bool = False
     trialExpiresAt: datetime | None = None
@@ -175,6 +185,11 @@ class RecordDetailResponse(BaseModel):
     vhsFilter: str | None = None
     vhsTransition: str | None = None
     vhsPhotoFrameIndex: int | None = None
+    vhsImageDuration: int | None = None
+    vhsVideoMode: int | None = None
+    walkCameraSpeed: int | None = None
+    walkVideoPreview: bool | None = None
+    walkVideoMaxDuration: int | None = None
     coverGenCount: int = 0
     storyGenCount: int = 0
     coverImage: CoverImageInfo | None = None
@@ -269,6 +284,11 @@ class RecordListItem(BaseModel):
     vhsFilter: str | None = None
     vhsTransition: str | None = None
     vhsPhotoFrameIndex: int | None = None
+    vhsImageDuration: int | None = None
+    vhsVideoMode: int | None = None
+    walkCameraSpeed: int | None = None
+    walkVideoPreview: bool | None = None
+    walkVideoMaxDuration: int | None = None
     lifestory: LifestorySummary | None = None
     timeline: TimelineSummary | None = None
     role: Literal["owner", "shared"] = "owner"
