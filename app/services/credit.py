@@ -13,8 +13,8 @@ ADMIN_EMAILS = {e.strip() for e in settings.ADMIN_EMAILS.split(",") if e.strip()
 
 PACKAGES = {
     "credit_1000": {"credits": 1000, "price_krw": 10000, "price_usd": 999},
-    "credit_3900": {"credits": 3900, "price_krw": 29000, "price_usd": 2499},
-    "credit_9900": {"credits": 9900, "price_krw": 59000, "price_usd": 4999},
+    "credit_3000": {"credits": 3000, "price_krw": 24000, "price_usd": 2099},
+    "credit_6000": {"credits": 6000, "price_krw": 39000, "price_usd": 3399},
 }
 
 COSTS = {
