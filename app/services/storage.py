@@ -25,6 +25,8 @@ class R2StorageService:
             Key=key,
             Body=file_content,
             ContentType=content_type,
+            # uuid 파일명 → 내용 불변. 브라우저/CDN 1년 캐시 (트랜스코더와 동일 정책)
+            CacheControl="public, max-age=31536000, immutable",
         )
 
         return f"{self.public_url}/{key}"
