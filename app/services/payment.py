@@ -68,12 +68,15 @@ class PaymentService:
         user_id: uuid.UUID,
         payment_id: str,
         package: str,
+        expected_krw: int | None = None,
+        expected_usd: int | None = None,
     ) -> Payment:
         """PortOne V2 결제 검증 후 Payment 레코드 저장.
 
         - PortOne V2 REST API로 결제 단건 조회
         - status == "PAID" 확인
         - 실제 결제 금액이 서버측 패키지 가격과 일치하는지 검증 (위·변조 차단)
+          expected_krw/expected_usd가 주어지면(할인 쿠폰 적용가) 그 값으로 검증
         - 결제 요청 시 심은 customData.userId 가 현재 유저와 일치하는지 검증
           (타인의 결제건 도용 차단)
         - gateway_tx_id(payment_id) unique 제약으로 멱등성 보장
@@ -137,7 +140,10 @@ class PaymentService:
                 f"Payment not paid. Status: {pay_status}"
             )
 
-        expected = pkg["price_krw"] if currency == "KRW" else pkg["price_usd"]
+        if currency == "KRW":
+            expected = expected_krw if expected_krw is not None else pkg["price_krw"]
+        else:
+            expected = expected_usd if expected_usd is not None else pkg["price_usd"]
         if amount_total != expected:
             raise PaymentVerificationError(
                 f"Amount mismatch: paid {amount_total} {currency}, "
