@@ -15,6 +15,8 @@ PACKAGES = {
     "credit_1000": {"credits": 1000, "price_krw": 10000, "price_usd": 999},
     "credit_3000": {"credits": 3000, "price_krw": 24000, "price_usd": 2099},
     "credit_6000": {"credits": 6000, "price_krw": 39000, "price_usd": 3399},
+    # 임시 결제 테스트용 — 실 서비스 오픈 전 제거할 것
+    "credit_test_100": {"credits": 100, "price_krw": 100, "price_usd": 10},
 }
 
 COSTS = {
