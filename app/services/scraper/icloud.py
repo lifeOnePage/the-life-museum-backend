@@ -46,6 +46,8 @@ class ICloudScraper(BaseScraper):
             Key=key,
             Body=image_bytes,
             ContentType=f"image/{match.group(1)}",
+            # uuid 파일명 → 내용 불변. 브라우저/CDN 1년 캐시
+            CacheControl="public, max-age=31536000, immutable",
         )
         return f"{settings.R2_PUBLIC_URL}/{key}"
 
