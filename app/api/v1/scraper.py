@@ -144,6 +144,17 @@ async def proxy_image(
             "Content-Type": resp.headers.get("content-type", "application/octet-stream"),
             "Accept-Ranges": "bytes",
             "X-Accel-Buffering": "no",
+            # ── CORS 캐시 오염 방지 ──────────────────────────────────────────
+            # crossOrigin 없는 <img>(Origin 헤더 미포함) 응답이 ACAO 없이
+            # 24h 캐시되면, 이후 같은 URL의 crossOrigin 로드(WebGL 텍스처)가
+            # 오염된 캐시 엔트리에 걸려 CORS 실패를 무한 반복한다
+            # (공유 표지 → 감상 진입 시 이미지 전면 차단·요청 폭주의 원인).
+            # 공개 이미지이므로 항상 ACAO * 를 부착하고(허용 목록 오리진은
+            # CORSMiddleware가 echo로 대체), Vary: Origin으로 오리진별 캐시
+            # 변형을 분리한다. * 는 허용 목록에 없는 오리진(apex 등)도 커버.
+            "Access-Control-Allow-Origin": "*",
+            "Vary": "Origin",
+            "Cross-Origin-Resource-Policy": "cross-origin",
         }
         # 성공 응답에만 브라우저 캐시 허용 (오류 응답이 캐시되면 안 됨)
         if resp.status_code in (200, 206):
