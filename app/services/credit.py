@@ -11,19 +11,19 @@ from app.config import settings
 
 ADMIN_EMAILS = {e.strip() for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
 
+# 앨범 결제 상품 — "포인트/크레딧 충전"이 아니라 "앨범 생성권 N개"를 직접 구매하는
+# 구조 (KG이니시스 심사 대응: 범용 선불 포인트가 아닌 특정 디지털 상품 판매).
+# price_usd는 PayPal 재도입 시를 대비해 남겨두되, 현재는 KRW 결제만 사용한다.
 PACKAGES = {
-    "credit_1000": {"credits": 1000, "price_krw": 10000, "price_usd": 999},
-    "credit_3000": {"credits": 3000, "price_krw": 24000, "price_usd": 2099},
-    "credit_6000": {"credits": 6000, "price_krw": 39000, "price_usd": 3399},
-    # 임시 결제 테스트용 — 실 서비스 오픈 전 제거할 것 (PG 최소 결제금액 1,000원 제약으로 100원에서 상향)
-    "credit_test_1000": {"credits": 100, "price_krw": 1000, "price_usd": 100},
+    "album_1": {"albums": 1, "price_krw": 9000, "price_usd": 699},
+    "album_3": {"albums": 3, "price_krw": 24000, "price_usd": 1899},
+    "album_6": {"albums": 6, "price_krw": 39000, "price_usd": 2999},
+    # 임시 결제 테스트용 — 실 서비스 오픈 전 제거할 것 (PG 최소 결제금액 1,000원 제약)
+    "album_test_1000": {"albums": 1, "price_krw": 1000, "price_usd": 100},
 }
 
-COSTS = {
-    "album_create": 900,
-    "emoji_regular": 100,
-    "emoji_limited": 200,
-}
+# 앨범 1개를 만들거나(체험 아님) 체험 앨범을 영구 전환할 때 소모되는 생성권 수.
+ALBUM_UNLOCK_COST = 1
 
 
 class InsufficientCreditsError(Exception):
@@ -40,7 +40,7 @@ class CreditService:
         package: str,
         reference_id: str | None = None,
     ) -> CreditTransaction:
-        """크레딧 충전 — 결제 성공 후 호출. SELECT FOR UPDATE로 동시성 보호."""
+        """앨범 생성권 충전 — 결제 성공 후 호출. SELECT FOR UPDATE로 동시성 보호."""
         pkg = PACKAGES.get(package)
         if not pkg:
             raise ValueError(f"Invalid package: {package}")
@@ -50,13 +50,13 @@ class CreditService:
         )
         user = result.scalar_one()
 
-        new_balance = user.credits + pkg["credits"]
+        new_balance = user.credits + pkg["albums"]
         user.credits = new_balance
 
         tx = CreditTransaction(
             user_id=user_id,
             tx_type=TxType.PURCHASE,
-            amount=pkg["credits"],
+            amount=pkg["albums"],
             balance_after=new_balance,
             description=f"Purchase {package}",
             reference_id=reference_id,
@@ -70,10 +70,9 @@ class CreditService:
         user_id: uuid.UUID,
         tx_type: str,
         reference_id: str | None = None,
-    ) -> CreditTransaction:
-        """크레딧 차감 — 잔액 부족 시 InsufficientCreditsError."""
-        cost = COSTS.get(tx_type)
-        if cost is None:
+    ) -> CreditTransaction | None:
+        """앨범 생성권 1개 소모 — 잔여 없으면 InsufficientCreditsError."""
+        if tx_type != "album_create":
             raise ValueError(f"Invalid tx_type: {tx_type}")
 
         result = await self.db.execute(
@@ -84,24 +83,16 @@ class CreditService:
         if user.email and user.email in ADMIN_EMAILS:
             return None
 
-        if user.credits < cost:
-            raise InsufficientCreditsError(
-                "크레딧이 부족합니다."
-            )
+        if user.credits < ALBUM_UNLOCK_COST:
+            raise InsufficientCreditsError("결제가 필요합니다.")
 
-        new_balance = user.credits - cost
+        new_balance = user.credits - ALBUM_UNLOCK_COST
         user.credits = new_balance
-
-        # tx_type 문자열에서 TxType enum 매핑
-        if tx_type.startswith("emoji_"):
-            enum_type = TxType.EMOJI_BUY
-        else:
-            enum_type = TxType(tx_type)
 
         tx = CreditTransaction(
             user_id=user_id,
-            tx_type=enum_type,
-            amount=-cost,
+            tx_type=TxType.ALBUM_CREATE,
+            amount=-ALBUM_UNLOCK_COST,
             balance_after=new_balance,
             description=f"Deduct for {tx_type}",
             reference_id=reference_id,

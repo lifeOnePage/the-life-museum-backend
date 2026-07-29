@@ -10,17 +10,9 @@ from app.api.deps import get_current_user
 from app.models.coupon import Coupon
 from app.models.user import User
 from app.services.coupon import discounted_prices
-from app.services.credit import (
-    CreditService,
-    InsufficientCreditsError,
-    PACKAGES,
-)
+from app.services.credit import CreditService, PACKAGES
 from app.services.payment import PaymentService, PaymentVerificationError
-from app.schemas.credit import (
-    CreditPurchaseRequest,
-    CreditDeductRequest,
-    CreditTransactionResponse,
-)
+from app.schemas.credit import CreditPurchaseRequest
 
 router = APIRouter()
 
@@ -41,10 +33,10 @@ async def purchase_credits(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """크레딧 패키지 구매. PortOne V2 결제 검증 통과 시에만 충전 (멱등).
+    """앨범 결제 상품 구매. PortOne V2 결제 검증 통과 시에만 생성권 지급 (멱등).
 
     coupon_code가 오면 보관함의 할인 쿠폰을 검증해 할인가로 금액을 대조하고,
-    충전 성공 시 쿠폰을 소모 처리한다 (전 과정 동일 트랜잭션).
+    결제 성공 시 쿠폰을 소모 처리한다 (전 과정 동일 트랜잭션).
     """
     if body.package not in PACKAGES:
         raise HTTPException(400, "Invalid package")
@@ -118,35 +110,3 @@ async def purchase_credits(
         return {"credits": balance, "added": 0, "already": True}
 
     return {"credits": tx.balance_after, "added": tx.amount}
-
-
-@router.post("/deduct")
-async def deduct_credits(
-    body: CreditDeductRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """크레딧 차감. 앨범 생성/이모지 구매 시 호출."""
-    tx_type = body.tx_type
-    if body.tx_type == "emoji_buy":
-        tx_type = f"emoji_{body.emoji_type or 'regular'}"
-
-    try:
-        service = CreditService(db)
-        tx = await service.deduct_credits(
-            user.id, tx_type, reference_id=body.reference_id
-        )
-        await db.commit()
-        return {"credits": tx.balance_after, "deducted": abs(tx.amount)}
-    except InsufficientCreditsError as e:
-        raise HTTPException(402, str(e))
-
-
-@router.get("/history")
-async def get_history(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = CreditService(db)
-    txs = await service.get_history(user.id)
-    return [CreditTransactionResponse.model_validate(tx) for tx in txs]

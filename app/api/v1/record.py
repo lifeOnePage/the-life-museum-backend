@@ -77,7 +77,7 @@ async def create_record(
     is_trial_album = not current_user.free_trial_used
 
     if not is_trial_album:
-        # 크레딧 차감 (900C) — 앨범 생성과 같은 트랜잭션
+        # 앨범 생성권 1개 소모 — 앨범 생성과 같은 트랜잭션
         try:
             await credit_service.deduct_credits(
                 user_id=current_user.id,
@@ -304,7 +304,7 @@ async def update_public(
     ):
         raise HTTPException(
             status_code=403,
-            detail="무료 체험 기간이 만료되었습니다. 크레딧으로 잠금을 해제해 주세요.",
+            detail="무료 체험 기간이 만료되었습니다. 결제 후 계속 이용하실 수 있어요.",
         )
 
     record = await service.update_record(record, {"is_public": body.isPublic})
@@ -317,7 +317,7 @@ async def activate_record(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """무료 체험 앨범 영구 잠금 해제 — 900C 차감 후 is_trial=False."""
+    """무료 체험 앨범 영구 잠금 해제 — 생성권 1개 소모 후 is_trial=False."""
     service = RecordService(db)
     record = await service.get_record_by_id(record_id)
     if not record:

@@ -140,10 +140,16 @@ class PaymentService:
                 f"Payment not paid. Status: {pay_status}"
             )
 
-        if currency == "KRW":
-            expected = expected_krw if expected_krw is not None else pkg["price_krw"]
-        else:
-            expected = expected_usd if expected_usd is not None else pkg["price_usd"]
+        # PayPal(USD)은 현재 비활성화 — KRW 결제만 지원. 재도입 시 아래 분기를 복구.
+        # if currency == "KRW":
+        #     expected = expected_krw if expected_krw is not None else pkg["price_krw"]
+        # else:
+        #     expected = expected_usd if expected_usd is not None else pkg["price_usd"]
+        if currency != "KRW":
+            raise PaymentVerificationError(
+                f"Unsupported currency: {currency} (KRW only)"
+            )
+        expected = expected_krw if expected_krw is not None else pkg["price_krw"]
         if amount_total != expected:
             raise PaymentVerificationError(
                 f"Amount mismatch: paid {amount_total} {currency}, "
