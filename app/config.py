@@ -74,8 +74,14 @@ class Settings(BaseSettings):
     # Dev
     DEV_AUTH_KEY: str = ""
 
-    # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    # CORS — apex(무 www)와 www 둘 다 필요. apex 누락 시 apex로 접속한 사용자의
+    # 이미지 프록시 요청 전체가 CORS 차단됨(프론트 재시도와 결합해 요청 폭주 유발).
+    # 프로덕션(Railway)의 CORS_ORIGINS env가 이 기본값을 덮어쓰므로 env에도 둘 다 포함할 것.
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "https://thelifememory.com",
+        "https://www.thelifememory.com",
+    ]
 
     class Config:
         env_file = ".env"
