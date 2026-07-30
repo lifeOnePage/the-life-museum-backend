@@ -18,8 +18,8 @@ PACKAGES = {
     "album_1": {"albums": 1, "price_krw": 9000, "price_usd": 699},
     "album_3": {"albums": 3, "price_krw": 24000, "price_usd": 1899},
     "album_6": {"albums": 6, "price_krw": 39000, "price_usd": 2999},
-    # 임시 결제 테스트용 — 실 서비스 오픈 전 제거할 것 (PG 최소 결제금액 1,000원 제약)
-    "album_test_1000": {"albums": 1, "price_krw": 1000, "price_usd": 100},
+    # 임시 결제 테스트용 — 잠시 주석 처리 (PG 최소 결제금액 1,000원 제약)
+    # "album_test_1000": {"albums": 1, "price_krw": 1000, "price_usd": 100},
 }
 
 # 앨범 1개를 만들거나(체험 아님) 체험 앨범을 영구 전환할 때 소모되는 생성권 수.
