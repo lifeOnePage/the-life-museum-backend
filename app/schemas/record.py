@@ -79,6 +79,7 @@ class RecordUpdate(BaseModel):
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
     backCoverImageUrl: str | None = None
+    stickers: list | None = None
     recordType: str | None = None
     vhsFilter: str | None = None
     vhsTransition: str | None = None
@@ -118,6 +119,7 @@ class RecordResponse(BaseModel):
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
     backCoverImageUrl: str | None = None
+    stickers: list | None = None
     recordType: str = "exhibit"
     vhsFilter: str | None = None
     vhsTransition: str | None = None
@@ -181,6 +183,7 @@ class RecordDetailResponse(BaseModel):
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
     backCoverImageUrl: str | None = None
+    stickers: list | None = None
     recordType: str = "exhibit"
     vhsFilter: str | None = None
     vhsTransition: str | None = None
@@ -280,6 +283,7 @@ class RecordListItem(BaseModel):
     externalLinkTitle: str | None = None
     externalLinkUrl: str | None = None
     backCoverImageUrl: str | None = None
+    stickers: list | None = None
     recordType: str = "exhibit"
     vhsFilter: str | None = None
     vhsTransition: str | None = None

@@ -16,7 +16,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -86,6 +86,11 @@ class Record(Base):
 
     # 뒷면 이미지 소스
     back_cover_image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # 뒷면 스티커 목록 — [{id, assetId, src, x, y, rotation, scale}, ...]
+    # (x/y는 0..1 정규화 좌표. id/assetId는 프론트 스티커 편집기의 키 —
+    #  재편집 시 필요하므로 임의로 제거/정규화하지 말 것)
+    stickers: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
     # 커버 제목 설정
     cover_title_visible: Mapped[bool] = mapped_column(
