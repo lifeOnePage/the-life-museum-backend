@@ -49,6 +49,7 @@ async def get_record_list(
             externalLinkTitle=r.external_link_title,
             externalLinkUrl=r.external_link_url,
             backCoverImageUrl=r.back_cover_image_url,
+            stickers=r.stickers,
             recordType=_to_record_type(r.exhibition_type),
             vhsFilter=r.vhs_filter,
             vhsTransition=r.vhs_transition,

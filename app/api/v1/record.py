@@ -129,6 +129,7 @@ async def create_record(
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
         backCoverImageUrl=record.back_cover_image_url,
+        stickers=record.stickers,
         recordType=_to_record_type(record.exhibition_type),
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
@@ -191,6 +192,7 @@ async def update_record(
         "externalLinkTitle": "external_link_title",
         "externalLinkUrl": "external_link_url",
         "backCoverImageUrl": "back_cover_image_url",
+        "stickers": "stickers",
         "vhsFilter": "vhs_filter",
         "vhsTransition": "vhs_transition",
         "vhsPhotoFrameIndex": "vhs_photo_frame_index",
@@ -200,11 +202,28 @@ async def update_record(
         "walkVideoPreview": "walk_video_preview",
         "walkVideoMaxDuration": "walk_video_max_duration",
     }
+    # 값 클리어(명시적 null)를 허용하는 nullable 컬럼 — '없음'으로 되돌리기가
+    # 가능해야 하는 필드들. 그 외 필드는 기존 skip-None 의미(부분 업데이트) 유지.
+    # (기존 코드는 모든 None을 스킵해 제목 배경 '없음' 저장·BGM 제거가 DB에
+    #  반영되지 않는 버그가 있었음 — 프론트는 null을 보내지만 통째로 무시됨)
+    nullable_clear_fields = {
+        "coverTitleBgColor",
+        "bgmId",
+        "bgmUrl",
+        "externalLinkTitle",
+        "externalLinkUrl",
+        "backCoverImageUrl",
+    }
+    sent_fields = body.model_fields_set
     update_data = {}
     for schema_field, model_field in field_mapping.items():
         value = getattr(body, schema_field, None)
         if value is not None:
             update_data[model_field] = value
+        elif schema_field in nullable_clear_fields and schema_field in sent_fields:
+            # 클라이언트가 명시적으로 null을 보낸 경우에만 DB 값을 비운다
+            # (JSON.stringify는 undefined 필드를 생략하므로 미전송과 구분됨)
+            update_data[model_field] = None
 
     # Convert frontend recordType to DB exhibition_type enum value
     if body.recordType is not None:
@@ -248,6 +267,7 @@ async def update_record(
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
         backCoverImageUrl=record.back_cover_image_url,
+        stickers=record.stickers,
         recordType=_to_record_type(record.exhibition_type),
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
@@ -443,6 +463,7 @@ async def get_record(
         externalLinkTitle=record.external_link_title,
         externalLinkUrl=record.external_link_url,
         backCoverImageUrl=record.back_cover_image_url,
+        stickers=record.stickers,
         recordType=_to_record_type(record.exhibition_type),
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
@@ -1103,6 +1124,7 @@ async def add_shared_record(
         bgmId=record.bgm_id,
         bgmUrl=record.bgm_url,
         backCoverImageUrl=record.back_cover_image_url,
+        stickers=record.stickers,
         recordType=_to_record_type(record.exhibition_type),
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
