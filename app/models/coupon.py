@@ -20,9 +20,12 @@ from app.database import Base
 
 
 class Coupon(Base):
-    """쿠폰 — 두 타입.
+    """쿠폰 — 세 타입.
 
     - credit: 코드 입력(redeem) 즉시 credit_amount 만큼 크레딧 지급 후 소모
+    - album: 코드 입력 즉시 credit_amount 만큼 앨범 생성권 지급 후 소모.
+      앨범 생성권은 users.credits 자체이므로 지급 경로는 credit과 동일하며,
+      credit_amount 컬럼을 '앨범 생성권 개수'로 재사용한다 (기본 1)
     - discount: 코드 입력 시 유저 보관함에 등록(claim)되고, 크레딧 충전 결제에서
       discount_percent% 할인(최대 max_discount_krw, 원화 기준)을 적용하며 소모
     """
@@ -44,12 +47,12 @@ class Coupon(Base):
         nullable=False,
     )
 
-    # 타입: 'credit' | 'discount'
+    # 타입: 'credit' | 'discount' | 'album'
     coupon_type: Mapped[str] = mapped_column(
         String(20), server_default="credit", nullable=False
     )
 
-    # 크레딧 수량 (credit 타입 전용)
+    # 크레딧 수량 (credit 타입) / 앨범 생성권 개수 (album 타입)
     credit_amount: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # 할인율(%)·상한금액(KRW) (discount 타입 전용)
@@ -66,7 +69,7 @@ class Coupon(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    # 사용 여부 / 사용일 (credit: redeem 시, discount: 결제 성공 시)
+    # 사용 여부 / 사용일 (credit·album: redeem 시, discount: 결제 성공 시)
     is_used: Mapped[bool] = mapped_column(
         Boolean, server_default=text("false"), nullable=False
     )

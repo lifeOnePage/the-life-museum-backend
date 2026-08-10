@@ -37,6 +37,7 @@ async def redeem_coupon(
     """쿠폰 코드 등록. 쿠폰 행 잠금으로 중복 사용 방지.
 
     - credit 타입: 즉시 크레딧 지급 후 소모
+    - album 타입: 즉시 앨범 생성권(credits) 지급 후 소모 — 지급 경로는 credit과 동일
     - discount 타입: 유저 보관함에 등록(claim) — 실제 소모는 충전 결제에서
     """
     code = body.code.strip().upper()
@@ -68,7 +69,8 @@ async def redeem_coupon(
             },
         }
 
-    # ── 크레딧 쿠폰: 즉시 지급 ──
+    # ── 크레딧/앨범 생성권 쿠폰: 즉시 지급 ──
+    # 앨범 생성권 = users.credits 자체이므로 두 타입 모두 동일 경로로 지급
     result = await db.execute(
         select(User).where(User.id == user.id).with_for_update()
     )
@@ -92,7 +94,11 @@ async def redeem_coupon(
     db.add(tx)
     await db.commit()
 
-    return {"type": "credit", "credits": new_balance, "added": coupon.credit_amount or 0}
+    return {
+        "type": coupon.coupon_type,  # "credit" | "album"
+        "credits": new_balance,
+        "added": coupon.credit_amount or 0,
+    }
 
 
 @router.get("/my")
@@ -198,14 +204,21 @@ async def generate_coupons(
         raise HTTPException(400, "prefix는 영문/숫자 1~10자만 가능합니다.")
 
     # 타입별 필수값 검증
+    # credit_amount: credit 타입은 크레딧, album 타입은 앨범 생성권 개수로 재사용
     if body.coupon_type == "credit":
         if not body.credit_amount:
             raise HTTPException(400, "크레딧 쿠폰은 credit_amount가 필요합니다.")
+        credit_amount = body.credit_amount
+    elif body.coupon_type == "album":
+        credit_amount = body.credit_amount or 1  # 미지정 시 앨범 생성권 1개
+        if credit_amount > 100:
+            raise HTTPException(400, "앨범 생성권 쿠폰은 100개 이하만 가능합니다.")
     else:  # discount
         if not body.discount_percent or not body.max_discount_krw:
             raise HTTPException(
                 400, "할인 쿠폰은 discount_percent와 max_discount_krw가 필요합니다."
             )
+        credit_amount = None
 
     # 배치 내 중복 + DB 기존 코드와 충돌 방지
     codes: set[str] = set()
@@ -227,7 +240,7 @@ async def generate_coupons(
         Coupon(
             code=code,
             coupon_type=body.coupon_type,
-            credit_amount=body.credit_amount if body.coupon_type == "credit" else None,
+            credit_amount=credit_amount,
             discount_percent=(
                 body.discount_percent if body.coupon_type == "discount" else None
             ),
