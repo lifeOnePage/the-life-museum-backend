@@ -129,7 +129,11 @@ class RecordService:
             ))
 
         await self.db.commit()
-        await self.db.refresh(record, attribute_names=["cover_image"])
+        # updated_at은 커버 저장 시 back_cover_image_url UPDATE의 onupdate로
+        # 서버에서 재계산되며 세션에서 만료된다 — 여기서 함께 재로딩하지 않으면
+        # 엔드포인트가 commit 후 접근할 때 동기 lazy-load로 MissingGreenlet 500
+        # (앨범은 이미 생성된 뒤라 "실패했는데 새로고침하면 생겨있는" 증상이 됨)
+        await self.db.refresh(record, attribute_names=["cover_image", "updated_at"])
 
         # Pre-transcoding: scrape videos from the album and start transcoding
         # in the background so optimized files are ready before the first visit.
