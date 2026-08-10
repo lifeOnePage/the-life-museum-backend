@@ -13,8 +13,8 @@ class CouponAdminAuthRequest(BaseModel):
 
 
 class CouponGenerateRequest(BaseModel):
-    coupon_type: str = Field(default="credit", pattern="^(credit|discount)$")
-    # credit 타입 전용
+    coupon_type: str = Field(default="credit", pattern="^(credit|discount|album)$")
+    # credit 타입: 지급 크레딧 / album 타입: 앨범 생성권 개수 (미지정 시 1)
     credit_amount: int | None = Field(default=None, gt=0, le=1_000_000)
     # discount 타입 전용
     discount_percent: int | None = Field(default=None, ge=1, le=100)
