@@ -5,6 +5,7 @@ from app.models.coupon import Coupon
 from app.models.record import Record
 from app.models.user_record_association import UserRecordAssociation
 from app.models.cover_image import CoverImage
+from app.models.guestbook_entry import GuestbookEntry
 from app.models.timeline import Timeline, Event
 from app.models.lifestory import Lifestory, Qa
 from app.models.video_cache import VideoCache
@@ -20,6 +21,7 @@ __all__ = [
     "Record",
     "UserRecordAssociation",
     "CoverImage",
+    "GuestbookEntry",
     # Timeline 관련
     "Timeline",
     "Event",

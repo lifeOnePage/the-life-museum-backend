@@ -1,6 +1,16 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, users, scraper, record, library, credit, payment, coupon
+from app.api.v1 import (
+    auth,
+    users,
+    scraper,
+    record,
+    library,
+    credit,
+    payment,
+    coupon,
+    guestbook,
+)
 
 api_router = APIRouter()
 
@@ -12,3 +22,4 @@ api_router.include_router(library.router, prefix="/library", tags=["library"])
 api_router.include_router(credit.router, prefix="/credit", tags=["credit"])
 api_router.include_router(payment.router, prefix="/payment", tags=["payment"])
 api_router.include_router(coupon.router, prefix="/coupon", tags=["coupon"])
+api_router.include_router(guestbook.router, prefix="/record", tags=["guestbook"])
