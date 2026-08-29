@@ -37,6 +37,9 @@ from app.schemas.record import (
     CoverUrlRequest,
     ShareRecordRequest,
     PublicUpdateRequest,
+    MEMORIAL_MAX_MEDIA,
+    MemorialMediaIngestRequest,
+    ConvertToMemorialRequest,
     trial_fields,
 )
 from app.services.record import RecordService
@@ -87,6 +90,13 @@ async def create_record(
         except InsufficientCreditsError as e:
             raise HTTPException(status_code=402, detail=str(e))
 
+    # recordType 지정 시 매핑 (memorial이면 서비스가 소스 URL·스크래핑 생략)
+    exhibition_type = (
+        _RECORD_TYPE_TO_DB.get(body.recordType, "walk")
+        if body.recordType
+        else "walk"
+    )
+
     record = await service.create_record(
         user_id=current_user.id,
         title=body.title or "",
@@ -96,6 +106,7 @@ async def create_record(
         icloud_url=body.icloudUrl,
         mybox_url=body.myboxUrl,
         is_trial=is_trial_album,
+        exhibition_type=exhibition_type,
     )
 
     # 무료 혜택을 사용했으면 유저에 영구 기록 (같은 트랜잭션에서 commit)
@@ -130,6 +141,7 @@ async def create_record(
         externalLinkUrl=record.external_link_url,
         backCoverImageUrl=record.back_cover_image_url,
         stickers=record.stickers,
+        exhibitionType=record.exhibition_type,
         recordType=_to_record_type(record.exhibition_type),
         vhsFilter=record.vhs_filter,
         vhsTransition=record.vhs_transition,
@@ -167,6 +179,33 @@ async def update_record(
     )
     if not is_owner:
         raise ForbiddenException("Only the owner can edit this record")
+
+    # memorial 앨범 가드: 영속 미디어 전용이므로 소스 링크 연결·타입 이탈 금지
+    # (소스 URL을 붙이면 pretranscode/스크랩 경로가 되살아나는 것을 차단)
+    if record.exhibition_type == "memorial":
+        for url_field in ("googlePhotoUrl", "googleDriveUrl", "icloudUrl", "myboxUrl"):
+            if getattr(body, url_field) is not None:
+                raise HTTPException(
+                    400, "Memorial albums cannot be linked to shared album sources"
+                )
+        if (
+            body.recordType is not None
+            and _RECORD_TYPE_TO_DB.get(body.recordType, "walk") != "memorial"
+        ) or (body.exhibitionType is not None and body.exhibitionType != "memorial"):
+            raise HTTPException(
+                400, "Memorial albums cannot be changed to another type"
+            )
+    else:
+        # 반대 방향도 차단: in-place memorial 전환은 영속 미디어가 없는 빈
+        # 추모 앨범을 만든다 — 전환은 convert-to-memorial 엔드포인트로만
+        if (
+            body.recordType is not None
+            and _RECORD_TYPE_TO_DB.get(body.recordType, "walk") == "memorial"
+        ) or body.exhibitionType == "memorial":
+            raise HTTPException(
+                400,
+                "Use the convert-to-memorial endpoint to create a memorial album",
+            )
 
     # body에서 None이 아닌 필드만 추출하여 업데이트
     field_mapping = {
@@ -439,10 +478,29 @@ async def get_record(
             ]
         )
 
+    # memorial: 인제스트 진행 여부를 공개 응답에 노출 (감상 페이지 "준비 중" 표시용)
+    media_status = None
+    if record.exhibition_type == "memorial":
+        from sqlalchemy import func as sa_func
+        from sqlalchemy import select as sa_select
+
+        from app.models.record_media import RecordMedia
+
+        in_progress = (
+            await db.execute(
+                sa_select(sa_func.count(RecordMedia.id)).where(
+                    RecordMedia.record_id == record_id,
+                    RecordMedia.status.in_(["pending", "processing"]),
+                )
+            )
+        ).scalar_one()
+        media_status = "processing" if in_progress > 0 else "ready"
+
     data = RecordDetailResponse(
         id=record.id,
         title=record.title,
         subtitle=record.subtitle,
+        mediaStatus=media_status,
         googlePhotoUrl=record.google_photo_url,
         googleDriveUrl=record.google_drive_url,
         icloudUrl=record.icloud_url,
@@ -502,6 +560,23 @@ async def get_record_media(
     if not record:
         raise NotFoundException("Record not found")
 
+    # memorial: 영속 미디어 반환 (스크래핑 없음).
+    # 레거시 memorial(영속 0건 + 소스 URL 보유)은 기존 스크랩 경로로 폴백.
+    if record.exhibition_type == "memorial":
+        persisted = await service.get_persisted_media_list(record_id)
+        has_source = any(
+            [
+                record.google_photo_url,
+                record.google_drive_url,
+                record.icloud_url,
+                record.mybox_url,
+            ]
+        )
+        if persisted or not has_source:
+            if images_only:
+                persisted = [m for m in persisted if m.type == "image"]
+            return success_response(data=RecordMediaResponse(mediaList=persisted))
+
     media_list = await service.scrape_media_list(
         record, images_only=images_only, refresh=refresh
     )
@@ -533,7 +608,34 @@ async def stream_record_media(
             "icloud_url": record.icloud_url,
             "mybox_url": record.mybox_url,
         }
+
+        # memorial: 스크래핑 없이 영속 미디어를 단일 complete 이벤트로 반환.
+        # 레거시 memorial(영속 0건 + 소스 URL 보유)은 스크랩 경로로 폴백.
+        persisted_payload = None
+        if record.exhibition_type == "memorial":
+            persisted = await service.get_persisted_media_list(record_id)
+            has_source = any(
+                v
+                for k, v in record_snapshot.items()
+                if k != "id"
+            )
+            if persisted or not has_source:
+                if images_only:
+                    persisted = [m for m in persisted if m.type == "image"]
+                persisted_payload = [m.model_dump() for m in persisted]
     # DB session released here — before streaming begins
+
+    if persisted_payload is not None:
+
+        async def memorial_generator():
+            event = {"type": "complete", "mediaList": persisted_payload}
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+
+        return StreamingResponse(
+            memorial_generator(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     async def event_generator():
         async for event in RecordService.scrape_media_list_stream_standalone(
@@ -545,6 +647,267 @@ async def stream_record_media(
         event_generator(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ── Memorial 영속 미디어 ─────────────────────────────────────────────
+
+
+async def _ensure_record_owner(
+    service: RecordService, user: User, record_id: uuid.UUID
+):
+    """레코드 존재 + 소유자 확인 (record 반환). update_record와 동일 기준."""
+    record = await service.get_record_by_id(record_id)
+    if not record:
+        raise NotFoundException("Record not found")
+    assoc = await service.get_user_association(user.id, record_id)
+    is_owner = (assoc is not None and assoc.role == "owner") or (
+        record.creator_id == user.id
+    )
+    if not is_owner:
+        raise ForbiddenException("Only the owner can perform this action")
+    return record
+
+
+async def _insert_memorial_media_rows(
+    db: AsyncSession,
+    record_id: uuid.UUID,
+    items,
+    source: str,
+):
+    """pending 행 삽입 (36 총량 강제) 후 인제스트 작업 목록 반환. commit 포함."""
+    from sqlalchemy import func as sa_func
+    from sqlalchemy import select as sa_select
+
+    from app.models.record_media import RecordMedia
+    from app.services.memorial_media import IngestItem
+    from app.services.url_policy import is_r2_url
+
+    if not items:
+        raise HTTPException(400, "items must not be empty")
+
+    existing_count = (
+        await db.execute(
+            sa_select(sa_func.count(RecordMedia.id)).where(
+                RecordMedia.record_id == record_id,
+                RecordMedia.status != "failed",
+            )
+        )
+    ).scalar_one()
+    if existing_count + len(items) > MEMORIAL_MAX_MEDIA:
+        raise HTTPException(
+            400,
+            f"Memorial albums can hold up to {MEMORIAL_MAX_MEDIA} media items",
+        )
+
+    max_order = (
+        await db.execute(
+            sa_select(sa_func.max(RecordMedia.sort_order)).where(
+                RecordMedia.record_id == record_id
+            )
+        )
+    ).scalar_one()
+    next_order = (max_order + 1) if max_order is not None else 0
+
+    work_items: list[IngestItem] = []
+    for offset, item in enumerate(items):
+        if source == "upload" and not is_r2_url(item.url):
+            raise HTTPException(400, "Upload items must be R2 URLs")
+
+        # upload 이미지: 이미 R2에 있음 — 다운로드 없이 즉시 ready
+        instant_ready = source == "upload" and item.type == "image"
+        row = RecordMedia(
+            record_id=record_id,
+            media_type=item.type,
+            sort_order=next_order + offset,
+            source=source,
+            status="ready" if instant_ready else "pending",
+            r2_url=item.url if instant_ready else None,
+        )
+        db.add(row)
+        await db.flush()
+        if not instant_ready:
+            work_items.append(
+                IngestItem(row_id=row.id, url=item.url, media_type=item.type)
+            )
+
+    await db.commit()
+    return work_items
+
+
+@router.post("/{record_id}/memorial-media", response_model=ApiResponse)
+async def ingest_memorial_media(
+    record_id: uuid.UUID,
+    body: MemorialMediaIngestRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """추모 앨범에 미디어 등록 — pending 행 삽입 후 백그라운드 R2 복사 (202)."""
+    from app.services import memorial_media
+
+    service = RecordService(db)
+    record = await _ensure_record_owner(service, current_user, record_id)
+
+    if record.exhibition_type != "memorial":
+        raise HTTPException(400, "Not a memorial album")
+    if body.source == "google_picker" and not body.accessToken:
+        raise HTTPException(400, "accessToken is required for google_picker source")
+    if memorial_media.is_ingest_active(record_id):
+        raise HTTPException(409, "Media ingest already in progress")
+
+    work_items = await _insert_memorial_media_rows(
+        db, record_id, body.items, body.source
+    )
+
+    if work_items:
+        asyncio.create_task(
+            memorial_media.ingest(
+                record_id, work_items, body.source, body.accessToken
+            )
+        )
+
+    return success_response(
+        data={"jobStarted": bool(work_items), "total": len(body.items)},
+        code=202,
+        message="Media ingest started",
+    )
+
+
+@router.get("/{record_id}/memorial-media/status", response_model=ApiResponse)
+async def memorial_media_status(
+    record_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """인제스트 진행 상태 집계. 15분 넘게 멈춘 행은 failed로 간주."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import select as sa_select
+
+    from app.models.record_media import RecordMedia
+
+    service = RecordService(db)
+    await _ensure_record_owner(service, current_user, record_id)
+
+    rows = (
+        await db.execute(
+            sa_select(RecordMedia.status, RecordMedia.updated_at).where(
+                RecordMedia.record_id == record_id
+            )
+        )
+    ).all()
+
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    counts = {"ready": 0, "processing": 0, "pending": 0, "failed": 0}
+    for status, updated_at in rows:
+        if status in ("pending", "processing") and updated_at < stale_cutoff:
+            # 프로세스 재시작 등으로 영영 안 끝나는 행 — 실패로 집계
+            counts["failed"] += 1
+        else:
+            counts[status] = counts.get(status, 0) + 1
+
+    done = counts["pending"] + counts["processing"] == 0
+    return success_response(
+        data={"total": len(rows), **counts, "done": done}
+    )
+
+
+@router.post("/{source_record_id}/convert-to-memorial", response_model=ApiResponse)
+async def convert_to_memorial(
+    source_record_id: uuid.UUID,
+    body: ConvertToMemorialRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """기존 앨범의 선택 미디어로 새 추모 앨범 생성 (원본 유지).
+
+    표현 데이터(제목/테마/생애문/타임라인 등)를 복사하고, 전달받은 미디어
+    URL(스크랩 결과 — iCloud는 수분 내 만료)을 즉시 인제스트한다.
+    일반 생성과 동일하게 생성권을 소모한다.
+    """
+    from app.services import memorial_media
+
+    service = RecordService(db)
+    credit_service = CreditService(db)
+    source_record = await _ensure_record_owner(
+        service, current_user, source_record_id
+    )
+
+    if source_record.exhibition_type == "memorial":
+        raise HTTPException(400, "Record is already a memorial album")
+    if not body.items:
+        raise HTTPException(400, "items must not be empty")
+    if len(body.items) > MEMORIAL_MAX_MEDIA:
+        raise HTTPException(
+            400,
+            f"Memorial albums can hold up to {MEMORIAL_MAX_MEDIA} media items",
+        )
+
+    # 생성권 소모 — 일반 앨범 생성과 동일 정책 (무료 체험 미사용 시 체험으로)
+    is_trial_album = not current_user.free_trial_used
+    if not is_trial_album:
+        try:
+            await credit_service.deduct_credits(
+                user_id=current_user.id,
+                tx_type="album_create",
+                reference_id=None,
+            )
+        except InsufficientCreditsError as e:
+            raise HTTPException(status_code=402, detail=str(e))
+
+    record = await service.create_memorial_copy(
+        source_record=source_record,
+        user_id=current_user.id,
+        title=body.title,
+        subtitle=body.subTitle,
+    )
+    if is_trial_album:
+        current_user.free_trial_used = True
+        db.add(current_user)
+    await db.commit()
+    await db.refresh(record, attribute_names=["cover_image", "updated_at"])
+
+    work_items = await _insert_memorial_media_rows(
+        db, record.id, body.items, "conversion"
+    )
+    if work_items:
+        asyncio.create_task(
+            memorial_media.ingest(record.id, work_items, "conversion", None)
+        )
+
+    data = RecordResponse(
+        id=record.id,
+        title=record.title,
+        subtitle=record.subtitle,
+        color=record.color,
+        bgColor=record.bg_color,
+        keyColor=record.key_color,
+        theme=record.theme,
+        exhibitionType=record.exhibition_type,
+        coverTitleVisible=record.cover_title_visible,
+        coverTitlePosition=record.cover_title_position,
+        coverTitleFont=record.cover_title_font,
+        coverTitleColor=record.cover_title_color,
+        coverTitleBgColor=record.cover_title_bg_color,
+        isPublic=record.is_public,
+        bgmId=record.bgm_id,
+        bgmUrl=record.bgm_url,
+        externalLinkTitle=record.external_link_title,
+        externalLinkUrl=record.external_link_url,
+        backCoverImageUrl=record.back_cover_image_url,
+        stickers=record.stickers,
+        recordType=_to_record_type(record.exhibition_type),
+        coverImage=CoverImageInfo(url=record.cover_image.url)
+        if record.cover_image
+        else None,
+        **trial_fields(record.is_trial, record.created_at),
+        createdAt=record.created_at,
+        updatedAt=record.updated_at,
+    )
+    return success_response(
+        data={"record": data.model_dump(mode="json"), "mediaJobStarted": bool(work_items)},
+        code=201,
+        message="Memorial album created",
     )
 
 

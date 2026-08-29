@@ -35,9 +35,11 @@ def compute_source_url_hash(url: str) -> str:
     return hashlib.sha256(base.encode()).hexdigest()
 
 
-async def _download_video(url: str, dest: Path) -> int:
+async def _download_video(url: str, dest: Path, headers: dict | None = None) -> int:
     """Stream-download video from URL to a local file. Returns file size in bytes."""
-    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(300.0, connect=30.0), headers=headers or {}
+    ) as client:
         async with client.stream("GET", url) as resp:
             resp.raise_for_status()
             total = 0
@@ -112,6 +114,8 @@ class VideoTranscoderService:
         self,
         source_url: str,
         record_id: uuid.UUID | None = None,
+        headers: dict | None = None,
+        with_poster: bool = False,
     ) -> dict:
         """
         Download, transcode to 720p, upload to R2.
@@ -119,6 +123,10 @@ class VideoTranscoderService:
         Returns dict with:
           source_url_hash, r2_url, original_size_bytes,
           optimized_size_bytes, duration_seconds
+          (+ poster_bytes when with_poster=True — 첫 프레임 JPEG)
+
+        headers: 다운로드 요청에 추가할 헤더 (구글포토 피커 baseUrl은
+        Authorization: Bearer가 필요).
         """
         url_hash = compute_source_url_hash(source_url)
 
@@ -133,7 +141,9 @@ class VideoTranscoderService:
                     url_hash[:12],
                     source_url[:80],
                 )
-                original_size = await _download_video(source_url, input_path)
+                original_size = await _download_video(
+                    source_url, input_path, headers=headers
+                )
                 logger.info(
                     "Downloaded: hash=%s size=%dMB",
                     url_hash[:12],
@@ -172,10 +182,49 @@ class VideoTranscoderService:
                     r2_url,
                 )
 
-                return {
+                result = {
                     "source_url_hash": url_hash,
                     "r2_url": r2_url,
                     "original_size_bytes": original_size,
                     "optimized_size_bytes": optimized_size,
                     "duration_seconds": duration,
                 }
+
+                # tempdir 정리 전에 포스터 프레임 추출 (memorial 썸네일용)
+                if with_poster:
+                    try:
+                        result["poster_bytes"] = await _extract_poster_frame(
+                            output_path, Path(tmpdir) / "poster.jpg"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "Poster extraction failed: hash=%s err=%s",
+                            url_hash[:12],
+                            e,
+                        )
+                        result["poster_bytes"] = None
+
+                return result
+
+
+async def _extract_poster_frame(video_path: Path, out_path: Path) -> bytes:
+    """영상 첫 구간에서 포스터 프레임 1장을 JPEG로 추출."""
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", "0.5",
+        "-i", str(video_path),
+        "-vframes", "1",
+        "-q:v", "3",
+        str(out_path),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0 or not out_path.exists():
+        raise RuntimeError(
+            f"FFmpeg poster failed (code={proc.returncode}): {stderr.decode()[-300:]}"
+        )
+    return out_path.read_bytes()

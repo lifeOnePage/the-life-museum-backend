@@ -17,8 +17,15 @@ class R2StorageService:
         self.bucket_name = settings.R2_BUCKET_NAME
         self.public_url = settings.R2_PUBLIC_URL
 
-    async def upload_file(self, file_content: bytes, content_type: str, extension: str) -> str:
-        key = f"covers/{uuid.uuid4()}.{extension}"
+    async def upload_file(
+        self,
+        file_content: bytes,
+        content_type: str,
+        extension: str,
+        prefix: str = "covers",
+    ) -> str:
+        # 프론트 getMediaType이 확장자로 타입을 감지하므로 확장자 보존 필수
+        key = f"{prefix}/{uuid.uuid4()}.{extension}"
 
         self.s3.put_object(
             Bucket=self.bucket_name,

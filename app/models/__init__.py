@@ -6,6 +6,7 @@ from app.models.record import Record
 from app.models.user_record_association import UserRecordAssociation
 from app.models.cover_image import CoverImage
 from app.models.guestbook_entry import GuestbookEntry
+from app.models.record_media import RecordMedia
 from app.models.timeline import Timeline, Event
 from app.models.lifestory import Lifestory, Qa
 from app.models.video_cache import VideoCache
@@ -22,6 +23,7 @@ __all__ = [
     "UserRecordAssociation",
     "CoverImage",
     "GuestbookEntry",
+    "RecordMedia",
     # Timeline 관련
     "Timeline",
     "Event",

@@ -57,7 +57,17 @@ class RecordService:
         icloud_url: str | None,
         mybox_url: str | None,
         is_trial: bool = False,
+        exhibition_type: str = "walk",
     ) -> Record:
+        # memorial 앨범은 공유 링크 스크래핑 기반이 아님 — 소스 URL 무시,
+        # og-meta 커버·pretranscode 생략 (미디어는 memorial-media 인제스트로 등록)
+        is_memorial = exhibition_type == "memorial"
+        if is_memorial:
+            google_photo_url = None
+            google_drive_url = None
+            icloud_url = None
+            mybox_url = None
+
         # Google Photos 메타데이터 자동 채움
         album_meta: AlbumMetadata | None = None
         if google_photo_url:
@@ -77,6 +87,7 @@ class RecordService:
             icloud_url=icloud_url,
             mybox_url=mybox_url,
             is_trial=is_trial,
+            exhibition_type=exhibition_type,
         )
         self.db.add(record)
         await self.db.flush()
@@ -154,6 +165,136 @@ class RecordService:
         except Exception as e:
             logger.warning("Failed to fetch Google album metadata: %s", e)
             return None
+
+    async def get_persisted_media_list(
+        self, record_id: uuid.UUID
+    ) -> list[MediaItem]:
+        """memorial 앨범의 영속 미디어(ready만)를 기존 MediaItem shape로 반환."""
+        from app.models.record_media import RecordMedia
+
+        result = await self.db.execute(
+            select(RecordMedia)
+            .where(
+                RecordMedia.record_id == record_id,
+                RecordMedia.status == "ready",
+            )
+            .order_by(RecordMedia.sort_order)
+        )
+        rows = result.scalars().all()
+        return [
+            MediaItem(
+                type=MediaType(row.media_type),
+                thumbnail_url=row.thumbnail_r2_url or row.r2_url,
+                original_url=row.r2_url,
+                is_cover=False,
+            )
+            for row in rows
+        ]
+
+    async def create_memorial_copy(
+        self,
+        source_record: Record,
+        user_id: uuid.UUID,
+        title: str | None = None,
+        subtitle: str | None = None,
+    ) -> Record:
+        """원본 앨범의 표현 데이터를 복사한 새 memorial 레코드 생성 (flush까지).
+
+        복사: 제목/부제, 테마·색, 커버 타이틀 설정, BGM, 스티커, 커버 이미지,
+        외부 링크, 생애문(+QA), 타임라인. 미복사: 소스 URL 4종(스크래핑 차단),
+        is_public(false), 방명록. commit은 호출자 책임.
+        """
+        record = Record(
+            creator_id=user_id,
+            title=title if title is not None else source_record.title,
+            subtitle=subtitle if subtitle is not None else source_record.subtitle,
+            exhibition_type="memorial",
+            color=source_record.color,
+            bg_color=source_record.bg_color,
+            key_color=source_record.key_color,
+            theme=source_record.theme,
+            back_cover_image_url=source_record.back_cover_image_url,
+            stickers=source_record.stickers,
+            cover_title_visible=source_record.cover_title_visible,
+            cover_title_position=source_record.cover_title_position,
+            cover_title_font=source_record.cover_title_font,
+            cover_title_color=source_record.cover_title_color,
+            cover_title_bg_color=source_record.cover_title_bg_color,
+            bgm_id=source_record.bgm_id,
+            bgm_url=source_record.bgm_url,
+            external_link_title=source_record.external_link_title,
+            external_link_url=source_record.external_link_url,
+        )
+        self.db.add(record)
+        await self.db.flush()
+
+        if source_record.cover_image:
+            self.db.add(
+                CoverImage(record_id=record.id, url=source_record.cover_image.url)
+            )
+
+        self.db.add(
+            UserRecordAssociation(
+                user_id=user_id, record_id=record.id, role="owner"
+            )
+        )
+
+        # 생애문 복사 (+QA)
+        source_lifestory = await self.get_lifestory(source_record.id)
+        lifestory = Lifestory(
+            record_id=record.id,
+            mood=source_lifestory.mood if source_lifestory else "",
+            content=(
+                source_lifestory.content
+                if source_lifestory
+                else "We do not remember days, we remember moments."
+            ),
+        )
+        self.db.add(lifestory)
+        await self.db.flush()
+        if source_lifestory:
+            for qa in source_lifestory.qas:
+                self.db.add(
+                    Qa(
+                        lifestory_id=lifestory.id,
+                        question=qa.question,
+                        answer=qa.answer,
+                    )
+                )
+
+        # 타임라인 복사
+        timeline = Timeline(record_id=record.id)
+        self.db.add(timeline)
+        await self.db.flush()
+        source_timeline = (
+            await self.db.execute(
+                select(Timeline)
+                .where(Timeline.record_id == source_record.id)
+                .options(selectinload(Timeline.events))
+            )
+        ).scalar_one_or_none()
+        source_events = source_timeline.events if source_timeline else []
+        if source_events:
+            for evt in source_events:
+                self.db.add(
+                    Event(
+                        timeline_id=timeline.id,
+                        title=evt.title,
+                        timestamp=evt.timestamp,
+                        description=evt.description,
+                    )
+                )
+        else:
+            self.db.add(
+                Event(
+                    timeline_id=timeline.id,
+                    title="The Life Gallery",
+                    timestamp="2026",
+                    description="The Life Gallery",
+                )
+            )
+
+        return record
 
     async def update_record(
         self,
