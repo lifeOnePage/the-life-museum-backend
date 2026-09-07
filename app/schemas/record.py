@@ -101,6 +101,7 @@ class RecordUpdate(BaseModel):
     coverTitleColor: HexColor = None
     coverTitleBgColor: HexColor = None
     isPublic: bool | None = None
+    guestbookEnabled: bool | None = None
     bgmId: int | None = None
     bgmUrl: str | None = None
     externalLinkTitle: str | None = None
@@ -208,6 +209,7 @@ class RecordDetailResponse(BaseModel):
     coverTitleColor: str | None = None
     coverTitleBgColor: str | None = None
     isPublic: bool = False
+    guestbookEnabled: bool = True
     bgmId: int | None = None
     bgmUrl: str | None = None
     externalLinkTitle: str | None = None

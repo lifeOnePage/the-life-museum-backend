@@ -134,6 +134,11 @@ class Record(Base):
         Boolean, nullable=False, server_default=text("false")
     )
 
+    # 방명록 수신 여부 (memorial 감상 페이지 방명록 탭 on/off)
+    guestbook_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
+
     # 무료 체험 앨범 여부 (가입 후 첫 앨범 무료 — created_at+30일 경과 시 잠금)
     is_trial: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")

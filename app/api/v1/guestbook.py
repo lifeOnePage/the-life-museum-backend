@@ -86,7 +86,15 @@ async def create_guestbook_entry(
     db: AsyncSession = Depends(get_db),
 ):
     """방명록 작성 (공개 — 방문자가 인증 없이 남긴다)."""
-    await _ensure_record_exists(db, record_id)
+    enabled = (
+        await db.execute(
+            select(Record.guestbook_enabled).where(Record.id == record_id)
+        )
+    ).scalar_one_or_none()
+    if enabled is None:
+        raise NotFoundException("Record not found")
+    if not enabled:
+        raise BadRequestException("Guestbook is disabled for this record")
 
     total = (
         await db.execute(
