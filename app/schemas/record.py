@@ -247,7 +247,7 @@ class RecordDetailResponse(BaseModel):
     isPublic: bool = False
     guestbookEnabled: bool = True
     memorialMotto: str | None = None
-    customTabEnabled: bool = False
+    customTabEnabled: bool = True
     customTabLabel: str | None = None
     customTabMode: str = "newtab"
     memorialPosterStyle: str | None = None
