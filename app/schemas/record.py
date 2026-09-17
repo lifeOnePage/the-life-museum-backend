@@ -44,6 +44,34 @@ def validate_hex_color(v: str | None) -> str | None:
 HexColor = Annotated[str | None, AfterValidator(validate_hex_color)]
 
 
+def validate_memorial_motto(v: str | None) -> str | None:
+    """추모 모토: 공백 제거 후 25자 이내. 빈 문자열은 None."""
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if len(v) > 25:
+        raise ValueError("memorialMotto must be 25 characters or fewer")
+    return v
+
+
+def validate_custom_tab_label(v: str | None) -> str | None:
+    """사용자 지정 탭 이름: 공백 제거 후 10자 이내. 빈 문자열은 None."""
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if len(v) > 10:
+        raise ValueError("customTabLabel must be 10 characters or fewer")
+    return v
+
+
+MemorialMotto = Annotated[str | None, AfterValidator(validate_memorial_motto)]
+CustomTabLabel = Annotated[str | None, AfterValidator(validate_custom_tab_label)]
+
+
 # --- QA ---
 class QaItem(BaseModel):
     question: str
@@ -102,6 +130,14 @@ class RecordUpdate(BaseModel):
     coverTitleBgColor: HexColor = None
     isPublic: bool | None = None
     guestbookEnabled: bool | None = None
+    memorialMotto: MemorialMotto = None
+    customTabEnabled: bool | None = None
+    customTabLabel: CustomTabLabel = None
+    customTabMode: Literal["newtab", "embed"] | None = None
+    # 인트로 포스터 설정 (memorial 전용)
+    memorialPosterStyle: Literal["classic", "glow", "frameless"] | None = None
+    memorialPosterTone: Literal["dark", "white"] | None = None
+    memorialAspectRatio: Literal["9:16", "16:9"] | None = None
     bgmId: int | None = None
     bgmUrl: str | None = None
     externalLinkTitle: str | None = None
@@ -210,6 +246,13 @@ class RecordDetailResponse(BaseModel):
     coverTitleBgColor: str | None = None
     isPublic: bool = False
     guestbookEnabled: bool = True
+    memorialMotto: str | None = None
+    customTabEnabled: bool = False
+    customTabLabel: str | None = None
+    customTabMode: str = "newtab"
+    memorialPosterStyle: str | None = None
+    memorialPosterTone: str | None = None
+    memorialAspectRatio: str | None = None
     bgmId: int | None = None
     bgmUrl: str | None = None
     externalLinkTitle: str | None = None

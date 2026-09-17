@@ -227,6 +227,13 @@ async def update_record(
         "coverTitleBgColor": "cover_title_bg_color",
         "isPublic": "is_public",
         "guestbookEnabled": "guestbook_enabled",
+        "memorialMotto": "memorial_motto",
+        "customTabEnabled": "custom_tab_enabled",
+        "customTabLabel": "custom_tab_label",
+        "customTabMode": "custom_tab_mode",
+        "memorialPosterStyle": "memorial_poster_style",
+        "memorialPosterTone": "memorial_poster_tone",
+        "memorialAspectRatio": "memorial_aspect_ratio",
         "bgmId": "bgm_id",
         "bgmUrl": "bgm_url",
         "externalLinkTitle": "external_link_title",
@@ -253,6 +260,9 @@ async def update_record(
         "externalLinkTitle",
         "externalLinkUrl",
         "backCoverImageUrl",
+        # 빈 문자열은 스키마 validator가 None으로 정규화 → 클리어 허용
+        "memorialMotto",
+        "customTabLabel",
     }
     sent_fields = body.model_fields_set
     update_data = {}
@@ -503,6 +513,13 @@ async def get_record(
         subtitle=record.subtitle,
         mediaStatus=media_status,
         guestbookEnabled=record.guestbook_enabled,
+        memorialMotto=record.memorial_motto,
+        customTabEnabled=record.custom_tab_enabled,
+        customTabLabel=record.custom_tab_label,
+        customTabMode=record.custom_tab_mode or "newtab",
+        memorialPosterStyle=record.memorial_poster_style,
+        memorialPosterTone=record.memorial_poster_tone,
+        memorialAspectRatio=record.memorial_aspect_ratio,
         googlePhotoUrl=record.google_photo_url,
         googleDriveUrl=record.google_drive_url,
         icloudUrl=record.icloud_url,
