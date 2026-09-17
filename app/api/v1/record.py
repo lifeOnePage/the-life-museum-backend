@@ -182,9 +182,11 @@ async def update_record(
 
     # memorial 앨범 가드: 영속 미디어 전용이므로 소스 링크 연결·타입 이탈 금지
     # (소스 URL을 붙이면 pretranscode/스크랩 경로가 되살아나는 것을 차단)
+    # 빈 문자열(클리어)은 무해하므로 실제 URL이 들어올 때만 거부한다 — 편집 화면의
+    # "앨범 정보 수정"이 외부 링크와 함께 빈 소스 필드를 보내던 케이스 대응
     if record.exhibition_type == "memorial":
         for url_field in ("googlePhotoUrl", "googleDriveUrl", "icloudUrl", "myboxUrl"):
-            if getattr(body, url_field) is not None:
+            if (getattr(body, url_field) or "").strip():
                 raise HTTPException(
                     400, "Memorial albums cannot be linked to shared album sources"
                 )
