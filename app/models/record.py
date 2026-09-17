@@ -143,12 +143,12 @@ class Record(Base):
     memorial_motto: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # 사용자 지정 탭 (memorial 감상 페이지 하단 외부 링크 탭)
-    # - custom_tab_enabled: on/off
+    # - custom_tab_enabled: on/off — 기본 on (외부 링크가 있으면 탭 노출, 끄면 숨김)
     # - custom_tab_label: 탭 이름 (최대 10자)
     # - custom_tab_mode: 'newtab'(새 창) | 'embed'(페이지 내부 표시)
     # - 링크 URL은 기존 external_link_url 사용
     custom_tab_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=text("false")
+        Boolean, nullable=False, server_default=text("true")
     )
     custom_tab_label: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     custom_tab_mode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
