@@ -139,6 +139,26 @@ class Record(Base):
         Boolean, nullable=False, server_default=text("true")
     )
 
+    # 추모 앨범 모토 (부제목과 별개, 최대 25자)
+    memorial_motto: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+    # 사용자 지정 탭 (memorial 감상 페이지 하단 외부 링크 탭)
+    # - custom_tab_enabled: on/off
+    # - custom_tab_label: 탭 이름 (최대 10자)
+    # - custom_tab_mode: 'newtab'(새 창) | 'embed'(페이지 내부 표시)
+    # - 링크 URL은 기존 external_link_url 사용
+    custom_tab_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    custom_tab_label: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    custom_tab_mode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+
+    # 추모 인트로 포스터 설정 — 스타일(classic|glow|frameless), 톤(dark|white), 비율(9:16|16:9)
+    # NULL이면 프론트 기본값(classic / dark / 9:16)
+    memorial_poster_style: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    memorial_poster_tone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    memorial_aspect_ratio: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
     # 무료 체험 앨범 여부 (가입 후 첫 앨범 무료 — created_at+30일 경과 시 잠금)
     is_trial: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
