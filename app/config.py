@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Mindlogic API Gateway
     GATEWAY_API_KEY: str = ""
     GATEWAY_BASE_URL: str = "https://factchat-cloud.mindlogic.ai/v1/gateway"
+    # 텍스트 생성(생애문·스토리)에 쓰는 채팅 모델 ID — 게이트웨이가 제공하는 이름이어야 한다.
+    # 게이트웨이 쪽 모델이 바뀌면 배포 없이 환경변수로 교체
+    GATEWAY_CHAT_MODEL: str = "gpt-5.5"
 
     # Google Gemini
     GOOGLE_GEMINI_API_KEY: str = ""

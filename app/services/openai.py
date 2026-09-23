@@ -50,7 +50,7 @@ class OpenAIService:
 """
 
         response = await self.client.chat.completions.create(
-            model="gpt-5.4-mini",
+            model=settings.GATEWAY_CHAT_MODEL,
             messages=[
                 {"role": "system", "content": "당신은 생애문 작성 전문가입니다."},
                 {"role": "user", "content": prompt},
@@ -91,7 +91,7 @@ class OpenAIService:
 """.strip()
 
         response = await self.client.chat.completions.create(
-            model="gpt-5.4-mini",
+            model=settings.GATEWAY_CHAT_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
