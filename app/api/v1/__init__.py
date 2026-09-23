@@ -10,6 +10,7 @@ from app.api.v1 import (
     payment,
     coupon,
     guestbook,
+    link_check,
 )
 
 api_router = APIRouter()
@@ -23,3 +24,4 @@ api_router.include_router(credit.router, prefix="/credit", tags=["credit"])
 api_router.include_router(payment.router, prefix="/payment", tags=["payment"])
 api_router.include_router(coupon.router, prefix="/coupon", tags=["coupon"])
 api_router.include_router(guestbook.router, prefix="/record", tags=["guestbook"])
+api_router.include_router(link_check.router, prefix="/link", tags=["link"])
